@@ -1,7 +1,15 @@
 version: "3"
 
-vars:
-  BASE_DIR: '{{.BASE_DIR | default (printf "%s/../base" .ROOT_DIR)}}'
+includes:
+  registries:
+    taskfile: https://raw.githubusercontent.com/opendefence/base/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles/registries.yaml
+    checksum: 7cfd8bb65f12fa010af65ae676581526b34d7a9dbbdad6901b35164e64c79d71 # pragma: allowlist secret - public SHA-256
+  cluster:
+    taskfile: https://raw.githubusercontent.com/opendefence/base/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles/cluster.yaml
+    checksum: f7de63fa2552656598c042959da7d5af8faa273d19705a269e83694c70a867e1 # pragma: allowlist secret - public SHA-256
+  base-package:
+    taskfile: https://raw.githubusercontent.com/opendefence/base/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles/base.yaml
+    checksum: fd3866d05fa6bb89eb9ffbed4c71fbca47f049750a993da5d012f19e0180c567 # pragma: allowlist secret - public SHA-256
 
 tasks:
   default:
@@ -35,22 +43,30 @@ tasks:
       - uv build --no-sources
 
   base:up:
-    desc: Bring up the base development cluster from the base checkout
-    dir: "{{.BASE_DIR}}"
+    desc: Create the base development cluster and install a base package
+    preconditions:
+      - sh: test -n {{.BASE_VERSION | default "" | shellQuote}} || test -n {{.BASE_PACKAGE | default "" | shellQuote}}
+        msg: Set BASE_VERSION or BASE_PACKAGE before creating the base cluster
     cmds:
-      - task up {{.CLI_ARGS}}
+      - task: registries:up
+      - task: cluster:create
+      - task: registries:connect
+      - task: cluster:configure-mirrors
+      - task: cluster:document-local-registry
+      - task: base-package:install
 
   base:status:
     desc: Show the base development cluster status
-    dir: "{{.BASE_DIR}}"
     cmds:
-      - task status {{.CLI_ARGS}}
+      - task: cluster:status
+      - task: registries:status
+      - task: base-package:status
 
   base:down:
     desc: Delete the base development cluster and keep its registries
-    dir: "{{.BASE_DIR}}"
     cmds:
-      - task down {{.CLI_ARGS}}
+      - task: registries:disconnect
+      - task: cluster:down
 
   kind:up:
     desc: Create the isolated cluster for protocol and binding probes

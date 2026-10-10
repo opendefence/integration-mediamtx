@@ -6,7 +6,7 @@ It is not a running API or operator yet. The
 [original API draft](docs/openapi.json) are design references. See the
 [implementation status](docs/implementation-status.md) for current work and evidence.
 
-Use Python 3.14, uv and Task 3.51.1. Install Task with `mise install`, or use
+Use Python 3.14, uv and Task 3.54.0. Install Task with `mise install`, or use
 the same version from the official Task distribution. Run `task sync`, then
 `task check` and `task build`. Run `task --list` to see the entry points.
 If mise is not active in your shell, prefix commands with `mise exec --`.
@@ -16,25 +16,38 @@ Run `uv run --locked prek run --all-files` to check the whole repository.
 Bandit exceptions identify test fixtures and fixed developer-tool invocations.
 The audited `.secrets.baseline` contains only public source hashes in recorded
 probe results. Review each new finding before adding a baseline entry; do not
-regenerate it to silence unknown credentials. Known test values use inline
-allowlist comments. New credentials remain blocked.
+regenerate it to silence unknown credentials. Known test values and public
+Taskfile checksums use inline allowlist comments. New credentials remain blocked.
 
-For the shared development cluster, keep a current checkout of
-[opendefence/base](https://github.com/opendefence/base) at `../base` and follow
-its prerequisites and kube-context instructions. This repository delegates to
-the [base taskfiles](https://github.com/opendefence/base/tree/main/taskfiles):
+For the shared development cluster, this repository imports the registry,
+cluster and package [base taskfiles](https://github.com/opendefence/base/tree/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles)
+from GitHub at a pinned revision, with checked SHA-256 contents. A sibling
+checkout is not required. Install Docker or Podman, Kind, kubectl, Zarf 0.87.0
+and jq as described in the [base prerequisites](https://github.com/opendefence/base/blob/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/README.md).
+Choose a published base version or an absolute path to a built package archive:
 
 ```sh
-task base:up
+task base:up BASE_PACKAGE=/absolute/path/to/zarf-package-base-arm64.tar.zst BASE_ISSUER=ca
 task base:status
 ```
 
-The base `up` task starts registries, creates Kind and deploys the base operators.
-Use `BASE_DIR=/path/to/base` for another checkout location. Pass base variables
-after `--`, for example `task base:up -- CONTAINER_RUNTIME=podman`.
+`base:up` starts registries, creates Kind and deploys the base operators from
+the selected package. Alternatively, set `BASE_VERSION=<published-version>`;
+the package reference defaults to `oci://ghcr.io/opendefence/base:<version>`.
+Use `BASE_ISSUER=ca` for local CA mode; the package default is ACME.
+Pass overrides directly, for example `CONTAINER_RUNTIME=podman` or
+`CLUSTER_NAME=my-dev`. Package commands require the current kubectl context to
+match `KUBE_CONTEXT` (default `kind-<CLUSTER_NAME>`); switch it explicitly when
+reusing an existing cluster. `base-package:install`, `base-package:remove` and
+`base-package:export-ca` are available separately.
 `task base:down` deletes that development cluster and keeps its registry data.
-These tasks use the base checkout's workflow; update an older checkout to obtain
-the current operator deployment steps. Run cluster lifecycle commands serially.
+Run cluster lifecycle commands serially. To build or deploy unpublished base
+source, run the checkout-only `build:*` tasks in `../base`.
+
+Task downloads the pinned includes on first use, including for Python checks.
+After downloading, `task --offline check` uses the local cache in `.task/`.
+Pinned checksums avoid trust prompts and reject changed contents. See
+[Task remote includes](https://taskfile.dev/docs/remote-taskfiles#pin-reviewed-contents).
 
 For the isolated protocol probes, install Kind v0.33.0 and start Podman.
 Run `task kind:up`.
