@@ -1,10 +1,12 @@
 # Implementation status
 
-Date: 2026-10-10. Gate: M2 independent policy slice complete and tested.
-The remaining Core-dependent API/operator work is gated. M3 has not started.
+Date: 2026-10-10. Gate: M2 policy, identity and binding adapters implemented and tested.
+Production API/operator authorization needs Core's effective-policy contract.
+M3 has not started.
 
-Reviewed implementation HEAD: `05f16870e7c612d8af47e4fed9e3838e53db2f8f`.
+Reviewed implementation HEAD: `a39005f26771a5c84e79157111c07712bcc5db42`.
 M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
+The subsequent commits are `f69561c` (Core UUID header) and `a39005f` (binding adapter).
 The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
 Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit ID.
@@ -47,12 +49,28 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   [M2 results](m2-results.json). See [M2 policy](m2-policy.md) for the exact scope.
 - Rechecked the Core handoff hash and prototype HEAD. Both remain unchanged
   from the M1 sources, and no agreed production contract was found there.
+- Consumed the user's supplied `../opendefence_core_crds.yaml`, SHA-256
+  `105bede6c1dd9f77c9effb6d8525d5882822a6ca67c75f14f2f59f64f106a747`.
+  Bindings are integration-created observations, not Core assignments. Status
+  only permits conditions and observed generation. Updated the plan and draft.
+- Implemented the configurable `X-OpenDefence-User-UUID` parser. Core owns mTLS
+  and any ForwardAuth implementation. Reject duplicate, joined and noncanonical
+  identity values; do not echo them in errors or parse certificates here.
+- Added typed Core binding models and atomic creation with immutable User UID
+  pins. Guard status writes with binding UID and resource version. Preserve
+  condition transition times and skip unchanged observations. No grant is issued
+  by these adapters, and no permission inheritance is implemented.
+- Added Cloudcoil at reviewed commit `e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8`.
+  Its direct dependency reference survives wheel builds. Read Core's scaffold at
+  `af0375a41aad095ce464ba588544930d0a486793`; no media-policy wire contract exists
+  at that revision. See [M2 bindings](m2-bindings.md).
 
 ## Evidence
 
 - `make check`: passed. Ruff lint and format passed. Strict Pyrefly reported
-  zero errors. The lock check passed. Pytest reported 126 passed: 48 path cases,
-  68 admission cases and 10 foundation cases.
+  zero errors with four narrow suppressions for Cloudcoil wire-field overrides.
+  No warnings remain. The lock check passed. Pytest reported 176 passed: 29 binding
+  cases, 21 identity-header cases, 48 path cases, 68 admission cases and 10 foundation cases.
 - `make build`: passed. Both the source distribution and wheel were built.
 - `uv run --locked prek validate-config .pre-commit-config.yaml`: passed.
 - `uv run --locked prek run --all-files`: all four hooks passed after staging.
@@ -98,6 +116,20 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   policy validation, time boundaries, secret representations, fixture imports,
   live assertions and cleanup. Ship this independent slice. No unresolved code
   findings at the pure-policy and one-runner scope. This is not the M5 audit.
+- Live shared-CRD binding probe: passed. Eight concurrent creators returned one
+  persisted binding. Synced status recorded the current generation, and a repeat
+  made no write. Stale resource versions and replaced binding UIDs were rejected.
+  Recreated Users received separate bindings despite name reuse. Kubernetes
+  pruned unsupported status fields. Results and source hashes are in
+  [M2 binding results](m2-bindings-results.json).
+- The probe initially tried to reopen a client already used by discovery. It
+  now registers explicit transport-close callbacks. The corrected live run passed
+  and removed its User, namespace and installed CRDs. The owned cluster was also
+  removed; both sibling clusters remained. No source-file RBAC was installed.
+- Ponytail review before the identity and binding commits: ship these adapters.
+  Checked header ambiguity, namespace ownership, atomic creation, UUID replacement,
+  status transitions, client lifecycle, dependency metadata and cleanup. This
+  does not validate production ingress, RBAC or effective-policy provenance.
 
 ## Runtime record
 
@@ -105,6 +137,10 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Python: 3.14.7. PyCharm configured `.venv/bin/python`; package manager: uv.
 - uv: 0.12.8 locally; CI configuration: 0.12.13.
 - Ruff: 0.17.0. Pyrefly: 1.3.2. Pytest: 9.1.1. prek: 0.5.5.
+- Cloudcoil: package version 0.5.0.dev0 at
+  `e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8` (upstream tag 0.8.0).
+  HTTPX: 0.28.1. Pydantic: 2.14.0; pydantic-core: 2.50.0. PyYAML: 6.0.3;
+  types-PyYAML: 6.0.12.20260906. All resolved versions are in `uv.lock`.
 - Podman: 6.0.2. Kind: v0.33.0. kubectl and test Kubernetes: v1.37.0.
 - Kind binary: `.local/bin/kind`, fetched from the official release.
   SHA-256: `0c8c7dbe5e23594a198b786c4bc13dacc101fa6196b0cb0b23a1ca44e61f4b4f`.
@@ -159,13 +195,16 @@ below. Before a later transition to M3, follow plan section 13 and confirm
 
 Canonical IDs and paths, exact grant scope, fresh-policy semantics and the
 audited regressions are implemented. The semantic fixtures do not prove that
-Core supplies this projection. Add Cloudcoil at a reviewed commit only when a
-real adapter needs it. There is no local inheritance algorithm or user database.
+Core supplies this projection. Cloudcoil now supports the shared-CRD binding
+adapter at its reviewed commit. There is no local inheritance algorithm or user database.
 
-Production Core binding ownership/schema, policy freshness and revision,
-trusted ForwardAuth headers, identity restore and approval deadlines remain
-unsettled in the working handoff. The prototype is not a substitute contract.
-Core owns certificate activation; media sessions are not activation evidence.
+Binding ownership/schema and the integration's injected-header responsibility
+are resolved by the user's M2 clarification. Core policy freshness, effective
+permissions and revision, identity restore and approval deadlines remain open.
+The inspected scaffold and supplied CRDs do not define that projection. A source
+was requested asynchronously; no fallback authority is assumed. Core owns
+certificate activation; media sessions are not activation evidence. Validate
+header stripping and trusted-only ingress in deployment; do not build ForwardAuth here.
 
 Grant storage has a documented design, not persistence proof. Implement and
 test concurrent reservation/create, idempotent retries, conditional updates,
@@ -181,8 +220,9 @@ TAK-specific support stays deferred until the sibling TAK tasks are complete.
 This includes TAK video XML and cross-repository integration. Existing TAK names
 in the draft API do not advertise runtime support.
 
-The API and operator are not implemented yet. Core policy provenance, RTMPS, SRT,
-WebRTC/ICE, native clients, Core/operator faults, ForwardAuth, release images,
+The public API and operator processes are not implemented yet. Their identity
+and binding adapters are implemented and tested. Core policy provenance, RTMPS, SRT,
+WebRTC/ICE, native clients, Core/operator faults, trusted ingress, release images,
 offline installation, AMD64 and hosted CI execution are not checked.
 Image publishing on `arc-runner-set` is deferred until runtime images exist.
 The Core companion document was located during M1. Its source hash and the
