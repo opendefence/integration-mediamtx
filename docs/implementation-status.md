@@ -1,16 +1,17 @@
 # Implementation status
 
-Date: 2026-10-10. Gate: M2 policy, identity and binding adapters implemented and tested.
-Production API/operator authorization needs Core's effective-policy contract.
+Date: 2026-10-10. Gate: M2 policy, identity, bindings and the binding operator tested.
+MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
-Reviewed implementation HEAD: `7f2b21a57e10948430a547374836c0586924a192`.
+Reviewed implementation HEAD: `a19793cf92abb0f40a627db84126cd5fae4c7c13`.
 M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
 The subsequent commits are `f69561c` (Core UUID header) and `a39005f` (binding adapter).
 The user expanded the checks in `47f892e`; `4a1d8b4` fixes the resulting failures.
 The package rename is in `5200799`.
 The Task migration and original-document relocation are in `17a8da1`.
 Pinned remote base tasks are in `7f2b21a`.
+The binding operator and isolated probe network fix are in `a19793c`.
 The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
 Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit ID.
@@ -41,7 +42,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   callback outage, certificate pinning and the broken HTTP prefix redirect.
   See [findings](m1-findings.md) and the [result record](m1-results.json).
 - Updated OpenAPI design gates and its secure-protocol mapping description.
-  No public API or operator was added.
+  No public API or operator was added at that checkpoint.
 - Implemented canonical UUID normalization, compact media paths and versioned
   stream IDs. Reject path aliases and complete-segment ownership failures.
 - Added immutable grant and effective-policy models, callback normalization and
@@ -70,13 +71,23 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   release 0.8.0, as selected in the user's checks commit. Read Core's scaffold at
   `af0375a41aad095ce464ba588544930d0a486793`; no media-policy wire contract exists
   at that revision. See [M2 bindings](m2-bindings.md).
+- Added the [binding operator](m2-operator.md) with Cloudcoil's Application,
+  scoped controller watches, retry queue, CLI and transport lifecycle. It watches
+  Core Users read-only and owned bindings in one namespace. Fresh User reads
+  precede atomic creation; owned status writes only report incomplete provisioning.
+  Missing or replaced Users do not cause retargeting or destructive cleanup.
+- Added `mediamtx-operator` and `task operator:run`, offline manifest generation,
+  namespace RBAC and internal controller diagnostics. Shared Core CRDs are not
+  installed by the application. Media readiness, credentials and finalizers remain
+  pending. Rechecked Core HEAD: still `af0375a41aad095ce464ba588544930d0a486793`.
 
 ## Evidence
 
 - `task check`: passed. Ruff lint and format passed. Strict Pyrefly reported
   zero errors with four narrow suppressions for Cloudcoil wire-field overrides.
-  No warnings remain. The lock check passed. Pytest reported 176 passed: 29 binding
-  cases, 21 identity-header cases, 48 path cases, 68 admission cases and 10 foundation cases.
+  No warnings remain. The lock check passed. Pytest reported 199 passed: 29 binding
+  cases, 21 identity-header cases, 22 operator cases, 48 path cases, 68 admission
+  cases, two foundation cases and nine isolated Kind cases.
 - `task build`: passed. Both the source distribution and wheel were built.
 - `uv run --locked prek validate-config .pre-commit-config.yaml`: passed.
 - `uv run --locked prek run --all-files`: all applicable expanded hooks passed.
@@ -208,6 +219,34 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   overrides, CI/tool version agreement and cache handling. Cluster lifecycle
   commands and hosted CI were not run. No package publication is claimed.
   The sibling base checkout and isolated probe lifecycle tasks were not changed.
+- Live binding operator probe with registry Cloudcoil 0.8.0: passed. Startup
+  replay created missing bindings; deleting a binding recreated it with a new UID.
+  Recreating a User created a separate pinned binding. Owned observations stayed
+  pending, former orphan readiness was cleared, an unrelated binding's resource
+  version stayed unchanged and the application stopped cleanly. The original
+  adapter assertions also passed against this release. See the source hashes and
+  cleanup results in [operator results](m2-operator-results.json).
+- Probe fixtures, namespace, User and installed Core CRDs were removed. The owned
+  cluster `mediamtx-5695ccafbf64` and its explicit kubeconfig were removed.
+  Sibling clusters `opendefence-dev` and `tak-server-t0` remained present.
+  Live operator RBAC enforcement, image deployment and diagnostics were not tested;
+  the probe used its explicit fixture Config with diagnostics disabled.
+- Live setup exposed imported base Task environment selecting the isolated Kind
+  network. The probe script now unsets inherited Docker/Podman network settings.
+  A regression test verifies isolation. Removed the initial probe cluster, then
+  recreated it with the corrected settings before running operator assertions.
+- Offline CLI manifest generation passed with an intentionally absent kubeconfig.
+  Manifest tests verify read-only Core permissions, namespace-scoped bindings and
+  no Secret/deletion/CRD privileges. Both package builds passed, and the wheel's
+  console entry point resolves to the operator. All applicable prek hooks passed.
+- Added only four independently verified public source hashes from the new result
+  record to the secret baseline; the eight historical entries remain unchanged.
+  No file exclusion or detector was relaxed.
+- Ponytail review before the operator commit: ship this binding observation slice.
+  Checked fresh-read boundaries, UID and namespace guards, negative-only status,
+  restart and conflict handling, mapped watches, generated RBAC, console packaging,
+  transport ownership, fixture cleanup and existing adapter callers. No unresolved
+  findings in this scope. MediaMTX provisioning remains unimplemented and gated.
 
 ## Runtime record
 
@@ -275,9 +314,10 @@ below. Before a later transition to M3, follow plan section 13 and confirm
 
 Canonical IDs and paths, exact grant scope, fresh-policy semantics and the
 audited regressions are implemented. The semantic fixtures do not prove that
-Core supplies this projection. The shared-CRD binding adapter's unit suite now
-passes with registry Cloudcoil 0.8.0. The recorded live result used the reviewed
-Git commit. There is no local inheritance algorithm or user database.
+Core supplies this projection. The shared-CRD binding adapter and running binding
+operator now pass unit and live checks with registry Cloudcoil 0.8.0. The original
+adapter result retains its reviewed Git dependency identity. There is no local
+inheritance algorithm or user database.
 
 Binding ownership/schema and the integration's injected-header responsibility
 are resolved by the user's M2 clarification. Core policy freshness, effective
@@ -301,9 +341,10 @@ TAK-specific support stays deferred until the sibling TAK tasks are complete.
 This includes TAK video XML and cross-repository integration. Existing TAK names
 in the draft API do not advertise runtime support.
 
-The public API and operator processes are not implemented yet. Their identity
-and binding adapters are implemented and tested. Core policy provenance, RTMPS, SRT,
-WebRTC/ICE, native clients, Core/operator faults, trusted ingress, release images,
+The binding observation operator is implemented; MediaMTX provisioning and the
+public API are not. Bindings stay `Synced=False` while those dependencies remain
+open. Core policy provenance, RTMPS, SRT, WebRTC/ICE, native clients, Core policy
+and MediaMTX provisioning faults, trusted ingress, release images,
 offline installation, AMD64 and hosted CI execution are not checked.
 Image publishing on `arc-runner-set` is deferred until runtime images exist.
 The Core companion document was located during M1. Its source hash and the
