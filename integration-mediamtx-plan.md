@@ -17,7 +17,7 @@ See `docs/implementation-status.md` for current work and evidence.
 
 Build a small Kubernetes integration around the upstream MediaMTX image. Keep external HTTP authorization, stream discovery, client configuration and scoped sharing. Replace the RASENMAEHER callbacks and payload proxy with Core reconciliation and a resource API.
 
-**Do not add a user database.** Core owns User identity and effective access. Store integration account metadata and reconciliation results in **`UserBinding.status`**. Store credentials in namespace-scoped Kubernetes Secrets. Do not put passwords, tokens or credential-bearing URLs in status.
+**Do not add a user database.** Core owns User identity and effective access. Report provisioning conditions and observed generation in **`UserBinding.status`**, as permitted by the supplied CRD. Read account identity and callsign from Core User. Store credentials and bounded grant metadata in namespace-scoped Kubernetes Secrets. Do not put passwords, tokens or credential-bearing URLs in status.
 
 Run the API, operator and MediaMTX in separate Pods. Use one Python package for the API and operator. Use the same policy functions in both processes. Do not add sidecars, Redis, a message broker or a workflow engine.
 

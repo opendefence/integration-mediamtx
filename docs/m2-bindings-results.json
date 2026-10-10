@@ -1,0 +1,21 @@
+{
+  "concurrentCreators": 8,
+  "atomicCreate": true,
+  "statusGeneration": 1,
+  "statusNoOp": true,
+  "staleWriteDenied": true,
+  "unknownStatusFieldsPruned": true,
+  "recreatedUserSeparated": true,
+  "replacedBindingDenied": true,
+  "coreCrdSourceSha256": "105bede6c1dd9f77c9effb6d8525d5882822a6ca67c75f14f2f59f64f106a747",
+  "cloudcoilRevision": "e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8",
+  "cloudcoilVersion": "0.5.0.dev0",
+  "pythonVersion": "3.14.7",
+  "packageSourceSha256": {
+    "bindings.py": "d7c58e0c33d3bf2c1921b54d5e42062cdd8a6a419939f5449127446097c3daa5",
+    "identity.py": "153abdc055fd216d70c02189f5af5b3e924b5f0e54782308c879c1d56f954144"
+  },
+  "namespaceCleanup": true,
+  "crdCleanup": true,
+  "userCleanup": true
+}

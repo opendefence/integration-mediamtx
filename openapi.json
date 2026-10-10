@@ -5,7 +5,7 @@
     "title": "OpenDefence MediaMTX Integration API",
     "version": "1.0.0-draft.1",
     "summary": "Resource API for MediaMTX streams, scoped grants and client profiles.",
-    "description": "Design contract for opendefence/integration-mediamtx. This file describes the proposed replacement API, not the deployed legacy service. Core owns identities and effective permissions. Integration account metadata belongs in UserBinding.status. Namespace-scoped Kubernetes Secrets hold credential material and bounded grant records. No user database is required. Callsigns are mutable display metadata. Public requests use verified client mTLS and Core authorization. Media credentials cannot authenticate to this REST API. Core UI session and workload alternatives remain design gates. Identity headers are internal trust-boundary data, not client authentication parameters. All public responses use Cache-Control: no-store. This draft exports the plan for contract review. It is not generated from a running implementation.",
+    "description": "Design contract for opendefence/integration-mediamtx. This file describes the proposed replacement API, not the deployed legacy service. Core owns identities and effective permissions. UserBinding.status holds provisioning conditions and observed generation only. Account identity and callsign come from Core User. Namespace-scoped Kubernetes Secrets hold credential material and bounded grant records. No user database is required. Callsigns are mutable display metadata. Core owns public user mTLS authentication; the integration consumes its injected UUID header. Media credentials cannot authenticate to this REST API. Core UI session and workload alternatives remain design gates. Identity headers are internal trust-boundary data, not client authentication parameters. All public responses use Cache-Control: no-store. This draft exports the plan for contract review. It is not generated from a running implementation.",
     "x-design-date": "2026-10-10",
     "x-plan": "integration-mediamtx-plan.md"
   },
@@ -1506,11 +1506,12 @@
             ]
           },
           "accountId": {
-            "$ref": "#/components/schemas/OpaqueId"
+            "$ref": "#/components/schemas/OpaqueId",
+            "description": "Derived from the referenced Core User UID; not persisted in binding status."
           },
           "callsign": {
             "type": "string",
-            "description": "Observed display name. It is not an account key.",
+            "description": "Display name read from the referenced Core User. It is not an account key or a binding status field.",
             "maxLength": 128
           },
           "conditions": {

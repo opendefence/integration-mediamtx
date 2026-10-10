@@ -30,3 +30,7 @@ work is ready and client tests pass.
 Core policy, status ownership, identity encoding, HTTP routing and session expiry
 remain M1 decisions. Do not invent Core resource fields or identity headers.
 No protocol or strict outage guarantee is established by this foundation.
+
+M2 clarification: the user supplied the actual UserBinding CRD and delegated
+user mTLS to Core. The [binding adapter](../m2-bindings.md) records the current
+schema, injected UUID header and remaining policy contract.
