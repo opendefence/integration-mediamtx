@@ -4,9 +4,10 @@ Date: 2026-10-10. Gate: M2 policy, identity and binding adapters implemented and
 Production API/operator authorization needs Core's effective-policy contract.
 M3 has not started.
 
-Reviewed implementation HEAD: `a39005f26771a5c84e79157111c07712bcc5db42`.
+Reviewed implementation HEAD: `4a1d8b4478849977eb347c948303c057f268d13a`.
 M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
 The subsequent commits are `f69561c` (Core UUID header) and `a39005f` (binding adapter).
+The user expanded the checks in `47f892e`; `4a1d8b4` fixes the resulting failures.
 The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
 Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit ID.
@@ -21,7 +22,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Added checks in GitHub Actions. Top-level checkout and shared setup actions
   use commit references. The shared setup action was read at its pinned revision.
   Its nested actions use the tags defined by that upstream revision.
-- Kept Snyk explicitly disabled. No security scan result is claimed.
+- Kept Snyk explicitly disabled. No Snyk scan result is claimed.
 - Created and tested an isolated, digest-pinned Kind workflow with Podman.
 - Recorded the user's TAK deferral in the plan, draft contract and decision record.
 - Located and read the working Core architecture handoff and API draft. Compared
@@ -60,8 +61,9 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   pins. Guard status writes with binding UID and resource version. Preserve
   condition transition times and skip unchanged observations. No grant is issued
   by these adapters, and no permission inheritance is implemented.
-- Added Cloudcoil at reviewed commit `e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8`.
-  Its direct dependency reference survives wheel builds. Read Core's scaffold at
+- The original binding probe used reviewed Cloudcoil commit
+  `e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8`. The dependency now uses registry
+  release 0.8.0, as selected in the user's checks commit. Read Core's scaffold at
   `af0375a41aad095ce464ba588544930d0a486793`; no media-policy wire contract exists
   at that revision. See [M2 bindings](m2-bindings.md).
 
@@ -73,7 +75,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   cases, 21 identity-header cases, 48 path cases, 68 admission cases and 10 foundation cases.
 - `make build`: passed. Both the source distribution and wheel were built.
 - `uv run --locked prek validate-config .pre-commit-config.yaml`: passed.
-- `uv run --locked prek run --all-files`: all four hooks passed after staging.
+- `uv run --locked prek run --all-files`: all applicable expanded hooks passed.
 - `bash -n scripts/kind.sh`, JSON syntax and staged whitespace checks passed.
 - Live Kind creation passed. The node became Ready. Image archive loading
   passed, and the probe image was visible in the node's image store.
@@ -130,6 +132,24 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   Checked header ambiguity, namespace ownership, atomic creation, UUID replacement,
   status transitions, client lifecycle, dependency metadata and cleanup. This
   does not validate production ingress, RBAC or effective-policy provenance.
+- Checks maintenance: Bandit uses Python 3.14 explicitly. Constructing the same
+  lone-surrogate fixture avoids its report encoding crash. Narrow rule-specific
+  exceptions cover test credentials, field length limits, private fixture flags
+  and developer-tool subprocess calls. No Python directory is excluded.
+- The audited secret baseline contains eight public source hashes in two
+  historical JSON records. Inline exceptions cover known test values and one
+  Kubernetes Secret name. Negative probes confirmed that new credentials in
+  both new and baselined files still fail, and Bandit still detects a new
+  hardcoded password. Conventional subjects pass; invalid subjects fail.
+- JSON normalization changed no parsed value in the API or three result records.
+  Restored PyYAML stubs; strict Pyrefly reports no warnings. Final `make check`
+  passed all 176 cases, and `make build` produced both distributions.
+- The branch guard rejects local commits on main. An isolated main-branch probe
+  verified that CI can skip only this guard; all content checks stay enabled.
+  Hosted CI and live protocol/binding probes were not repeated for this change.
+- Ponytail review before the checks fix: ship. Checked fixture callers, argument
+  vectors, admission behavior, exact baseline entries, lock changes, CI and
+  historical evidence. No unresolved findings within this maintenance scope.
 
 ## Runtime record
 
@@ -137,7 +157,8 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Python: 3.14.7. PyCharm configured `.venv/bin/python`; package manager: uv.
 - uv: 0.12.8 locally; CI configuration: 0.12.13.
 - Ruff: 0.17.0. Pyrefly: 1.3.2. Pytest: 9.1.1. prek: 0.5.5.
-- Cloudcoil: package version 0.5.0.dev0 at
+- Cloudcoil: registry version 0.8.0 with Kubernetes, operator and test extras.
+  The historical live binding probe used Git package version 0.5.0.dev0 at
   `e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8` (upstream tag 0.8.0).
   HTTPX: 0.28.1. Pydantic: 2.14.0; pydantic-core: 2.50.0. PyYAML: 6.0.3;
   types-PyYAML: 6.0.12.20260906. All resolved versions are in `uv.lock`.
@@ -195,8 +216,9 @@ below. Before a later transition to M3, follow plan section 13 and confirm
 
 Canonical IDs and paths, exact grant scope, fresh-policy semantics and the
 audited regressions are implemented. The semantic fixtures do not prove that
-Core supplies this projection. Cloudcoil now supports the shared-CRD binding
-adapter at its reviewed commit. There is no local inheritance algorithm or user database.
+Core supplies this projection. The shared-CRD binding adapter's unit suite now
+passes with registry Cloudcoil 0.8.0. The recorded live result used the reviewed
+Git commit. There is no local inheritance algorithm or user database.
 
 Binding ownership/schema and the integration's injected-header responsibility
 are resolved by the user's M2 clarification. Core policy freshness, effective
