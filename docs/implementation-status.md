@@ -4,22 +4,24 @@ Date: 2026-10-10. Gate: M2 policy, identity and binding adapters implemented and
 Production API/operator authorization needs Core's effective-policy contract.
 M3 has not started.
 
-Reviewed implementation HEAD: `5200799cbd46d640ed155b892b1939e55909731e`.
+Reviewed implementation HEAD: `17a8da16b14155608429af55c752b94ca4b0e2f4`.
 M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
 The subsequent commits are `f69561c` (Core UUID header) and `a39005f` (binding adapter).
 The user expanded the checks in `47f892e`; `4a1d8b4` fixes the resulting failures.
 The package rename is in `5200799`.
+The Task migration and original-document relocation are in `17a8da1`.
 The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
 Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit ID.
 
 ## Completed work
 
-- Read the implementation plan and all of `openapi.json`.
+- Read the [original implementation plan](integration-mediamtx-plan.md) and all
+  of the [original API draft](openapi.json), now retained under `docs/`.
 - Read the exact TAK prototype foundation at
   `b332e527c7dedf5e3f0a972b792c7d697dcace6b` from the local Git history.
 - Created the Python package, uv lockfile, strict type checks, lint checks,
-  pytest checks, local prek hooks and Make entry points.
+  pytest checks, local prek hooks and Task entry points, originally provided by Make.
 - Added checks in GitHub Actions. Top-level checkout and shared setup actions
   use commit references. The shared setup action was read at its pinned revision.
   Its nested actions use the tags defined by that upstream revision.
@@ -70,11 +72,11 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 
 ## Evidence
 
-- `make check`: passed. Ruff lint and format passed. Strict Pyrefly reported
+- `task check`: passed. Ruff lint and format passed. Strict Pyrefly reported
   zero errors with four narrow suppressions for Cloudcoil wire-field overrides.
   No warnings remain. The lock check passed. Pytest reported 176 passed: 29 binding
   cases, 21 identity-header cases, 48 path cases, 68 admission cases and 10 foundation cases.
-- `make build`: passed. Both the source distribution and wheel were built.
+- `task build`: passed. Both the source distribution and wheel were built.
 - `uv run --locked prek validate-config .pre-commit-config.yaml`: passed.
 - `uv run --locked prek run --all-files`: all applicable expanded hooks passed.
 - `bash -n scripts/kind.sh`, JSON syntax and staged whitespace checks passed.
@@ -163,6 +165,26 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Ponytail review before the rename commit: ship. Checked all imports, build
   artifacts, fixture mounts, binding ownership and evidence references. No
   unresolved findings within the rename scope. Live probes were not repeated.
+- Moved the original plan and API draft under `docs/`. The API is byte-identical,
+  its relative plan reference resolves, and the contract test uses the new path.
+  Current documentation points to these as design references.
+- Replaced Make with Task 3.51.1, including CI. Read the official setup action's
+  entry point and installer at `a00fbb05ce67b35648be3c78cbc9fd85354c757e` and
+  pinned that revision. Task listing, all 176 tests, both package builds and all
+  applicable prek hooks passed. The source archive includes the relocated docs,
+  Taskfile and mise tool pin. Earlier Make command results are historical evidence.
+- Base development tasks delegate to a checkout at `../base`, with a `BASE_DIR`
+  override and base variables forwarded after `--`. Read the upstream workflow at
+  [`b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6`](https://github.com/opendefence/base/tree/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles).
+  The sibling checkout is older, at `604587f4da6f1e894b68ec6495c45b2d16510cbd`;
+  it needs updating to obtain the current base operator deployment tasks.
+- Disposable Task fixtures verified delegation, working directories, forwarded
+  variables, quoted archive paths and missing-argument rejection. Task listing
+  works without a base checkout. No real base lifecycle command was run, and
+  the sibling checkout was not changed. Isolated probe cluster tasks remain separate.
+- Ponytail review before the Task migration: ship. Checked callers, document
+  links, archived evidence, command ordering, task quoting, CI pins and package
+  contents. Hosted CI and live cluster/protocol checks were not repeated.
 
 ## Runtime record
 
@@ -170,6 +192,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Python: 3.14.7. PyCharm configured `.venv/bin/python`; package manager: uv.
 - uv: 0.12.8 locally; CI configuration: 0.12.13.
 - Ruff: 0.17.0. Pyrefly: 1.3.2. Pytest: 9.1.1. prek: 0.5.5.
+- Task: 3.51.1 from mise locally; CI uses the pinned official setup action.
 - Cloudcoil: registry version 0.8.0 with Kubernetes, operator and test extras.
   The historical live binding probe used Git package version 0.5.0.dev0 at
   `e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8` (upstream tag 0.8.0).
