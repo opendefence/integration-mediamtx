@@ -1,0 +1,2 @@
+# Dedicated namespace created before deployment; Zarf does not own its lifecycle.
+namespace: integration-mediamtx

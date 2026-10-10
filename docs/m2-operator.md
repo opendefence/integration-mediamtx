@@ -57,7 +57,8 @@ the selected namespace. The operator receives no Secret, Core status, deletion,
 CRD installation or RBAC administration permissions. Shared CRDs are not
 generated or installed by this application, including when the shared Core
 models carry Cloudcoil CRD metadata. Use one replica for this slice.
-An operator image has not been built or published.
+The [Zarf package workflow](../README.md#zarf-package) builds a local operator
+image and archive. A release image has not been published.
 
 An internal HTTP diagnostics listener exposes `/healthz`, `/readyz` and
 `/metrics` on port 8080. Readiness means that the controller's watches have

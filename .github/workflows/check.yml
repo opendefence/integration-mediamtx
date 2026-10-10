@@ -29,6 +29,13 @@ jobs:
         env:
           SKIP: no-commit-to-branch
       - run: task build
+      - name: Install Zarf
+        run: |
+          curl -fsSL https://github.com/zarf-dev/zarf/releases/download/v0.87.0/zarf_v0.87.0_Linux_amd64 -o /tmp/zarf
+          echo "50c344ee06bcd968e4464d50beb3c508ed784066297598a019db8a4d8eeff0cd  /tmp/zarf" | sha256sum --check - # pragma: allowlist secret - public SHA-256
+          chmod +x /tmp/zarf
+          echo /tmp >> "$GITHUB_PATH"
+      - run: task package:check
 
   snyk:
     # Disabled until the new organization is configured. This is not a passed scan.

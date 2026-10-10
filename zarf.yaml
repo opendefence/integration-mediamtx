@@ -1,0 +1,21 @@
+kind: ZarfPackageConfig
+metadata:
+  name: integration-mediamtx
+  version: 0.1.0
+  description: OpenDefence MediaMTX binding observation operator
+values:
+  files:
+    - values/values.yaml
+  schema: values/values.schema.json
+components:
+  - name: operator
+    required: true
+    imageArchives:
+      - path: .local/operator-image.tar
+        images:
+          - zarf.internal/opendefence/integration-mediamtx:0.1.0
+    manifests:
+      - name: operator
+        template: true
+        files:
+          - manifests/operator/operator.yaml.tmpl

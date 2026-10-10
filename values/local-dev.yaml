@@ -1,0 +1,2 @@
+# Separate integration namespace for local development on the shared base/Core cluster.
+namespace: integration-mediamtx-dev

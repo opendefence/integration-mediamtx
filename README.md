@@ -85,3 +85,50 @@ and guarded status writes, with an explicit live CRD probe. Core effective media
 policy and the public API remain separate work. The [M2 binding operator](docs/m2-operator.md)
 runs these observations with `task operator:run`. Provisioning stays incomplete
 until its Core policy and MediaMTX configuration contracts are implemented.
+
+## Zarf package
+
+`zarf.yaml` packages the current binding observation operator and its local OCI
+image archive. Base, Core and Core's shared CRDs must be installed first. Create
+a dedicated namespace before deploying; this package leaves namespace lifecycle
+with the cluster owner so removing it cannot delete unrelated objects.
+
+Deployment settings use Zarf package values, following Core's overlay names:
+`values/values.yaml` is the production default (`integration-mediamtx`) and
+`values/local-dev.yaml` selects `integration-mediamtx-dev` for local development.
+The `namespace` value changes the generated RBAC and Deployment namespace.
+The Pod reads `CLOUDCOIL_NAMESPACE` from its own namespace through Kubernetes;
+no separate Pod environment setting is needed. For a standalone install, pass a
+values file or `--set-values namespace=<your-dedicated-namespace>` to Zarf.
+`KUBECONFIG` selects the administrator's deployment context, not Pod configuration.
+There are no other operator application environment settings yet; add future
+settings to the Zarf values, schema and manifest template when they appear.
+
+Install Zarf 0.87.0 and run `task package:check` to lint and render both
+overlays. `task package:render` regenerates the operator manifest after its
+controller, RBAC or Deployment overlay changes; `task check` rejects a stale
+generated file. `task package:inspect` renders the local-dev overlay by default;
+set `VALUES_FILE=values/values.yaml` for the production default. To build a
+self-contained ARM64 package with Podman:
+
+```sh
+task package:build ARCH=arm64 CONTAINER_RUNTIME=podman
+```
+
+The archive is `dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst`.
+For an AMD64 Docker host, omit those overrides (Docker 25 or newer is needed
+for a compatible [Zarf image archive](https://docs.zarf.dev/ref/components/)).
+The build creates an ignored OCI image
+archive in `.local/` and packages the image without a published registry tag.
+After selecting the intended Kubernetes context and creating the namespace,
+deploy with:
+
+```sh
+zarf package deploy dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst \
+  --connected --confirm --values values/local-dev.yaml
+```
+
+For production or standalone deployments, supply the appropriate values file
+or set `namespace` directly. The package
+has not been deployed to a production cluster. It contains the operator only;
+the MediaMTX workload and public API follow when their contracts are ready.
