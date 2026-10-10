@@ -2,7 +2,7 @@
 
 import os
 import shutil
-import subprocess
+import subprocess  # nosec B404 # Tests invoke the local shell with an argument vector.
 from pathlib import Path
 
 import pytest
@@ -30,7 +30,10 @@ def checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def run_kind(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["bash", str(root / "scripts/kind.sh"), *args], text=True, capture_output=True, check=False)
+    # PATH deliberately selects the fake Kind binary; all arguments are test-owned.
+    return subprocess.run(  # nosec B603 B607
+        ["bash", str(root / "scripts/kind.sh"), *args], text=True, capture_output=True, check=False
+    )
 
 
 def test_owned_cluster_lifecycle(checkout: Path) -> None:

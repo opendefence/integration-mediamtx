@@ -7,6 +7,12 @@ It is not a running API or operator yet. Read the
 
 Use Python 3.14 and uv. Run `make sync`, then `make check` and `make build`.
 Run `uv run --locked prek install` to install the local checks.
+Run `uv run --locked prek run --all-files` to check the whole repository.
+Bandit exceptions identify test fixtures and fixed developer-tool invocations.
+The audited `.secrets.baseline` contains only public source hashes in recorded
+probe results. Review each new finding before adding a baseline entry; do not
+regenerate it to silence unknown credentials. Known test values use inline
+allowlist comments. New credentials remain blocked.
 
 For protocol tests, install Kind v0.33.0 and start Podman. Run `make kind-up`.
 The script creates a separate cluster for this checkout. It stores the kubeconfig

@@ -10,7 +10,7 @@ import json
 import os
 import secrets
 import ssl
-import subprocess
+import subprocess  # nosec B404 # Harness runs developer tools with argument vectors.
 import tempfile
 import time
 from pathlib import Path
@@ -36,7 +36,7 @@ LOCAL_IMAGES = {name: f"localhost/mediamtx-m1-{name}:{image[-12:]}" for name, im
 
 
 def run(*args: str, data: str | None = None) -> str:
-    return subprocess.run(args, input=data, text=True, capture_output=True, check=True).stdout
+    return subprocess.run(args, input=data, text=True, capture_output=True, check=True).stdout  # nosec B603
 
 
 def kubectl(*args: str, data: str | None = None) -> str:
@@ -89,7 +89,7 @@ def pod(name: str, image: str, command: list[str]) -> dict[str, Any]:
                 }
             ],
             "volumes": [
-                {"name": "fixtures", "secret": {"secretName": "fixtures"}},
+                {"name": "fixtures", "secret": {"secretName": "fixtures"}},  # pragma: allowlist secret
                 {
                     "name": "config",
                     "configMap": {
@@ -151,7 +151,7 @@ def basic(user: str, password: str) -> dict[str, str]:
 def forward(name: str, ports: list[str], log: Path) -> subprocess.Popen[bytes]:
     cluster = (ROOT / ".local/kind/owner").read_text().strip()
     with log.open("w") as output:
-        process = subprocess.Popen(
+        process = subprocess.Popen(  # nosec B603 B607 # Developer kubectl from PATH, shell-free arguments.
             [
                 "kubectl",
                 "--kubeconfig",
@@ -239,14 +239,14 @@ def check_protocol(
     assert request(18888, copied_query_url, context)[0] == 200
     assert request(18888, copied_cookie_url, context, {"Cookie": cookie})[0] == 200
 
-    kubectl("exec", "auth", "--", "touch", "/tmp/stale-policy")
+    kubectl("exec", "auth", "--", "touch", "/tmp/stale-policy")  # nosec B108 # Private fixture flag.
     assert request(18888, index, context, reader)[0] == 401
     assert api("paths/list")[0] == 200
-    kubectl("exec", "auth", "--", "rm", "/tmp/stale-policy")
+    kubectl("exec", "auth", "--", "rm", "/tmp/stale-policy")  # nosec B108 # Private fixture flag.
     report["staleProjectionDeniesMediaButNotControl"] = True
 
     # This fixture flag simulates a revoked/expired reader, not a Core resource.
-    kubectl("exec", "auth", "--", "touch", "/tmp/deny-read")
+    kubectl("exec", "auth", "--", "touch", "/tmp/deny-read")  # nosec B108 # Private fixture flag.
     assert request(18888, index, context, reader)[0] == 401
     status, _, playlist = request(18888, copied_query_url, context)
     assert status == 200
@@ -288,7 +288,7 @@ def check_protocol(
     assert request(28443, location, context, reader)[0] == 404
     report["stripPrefixRedirectEscapesPublicRoute"] = True
 
-    event_log = kubectl("exec", "auth", "--", "cat", "/tmp/events.jsonl")
+    event_log = kubectl("exec", "auth", "--", "cat", "/tmp/events.jsonl")  # nosec B108 # Private fixture log.
     for grant in credentials.values():
         assert grant["password"] not in event_log
     events = [json.loads(line) for line in event_log.splitlines()]
@@ -297,7 +297,7 @@ def check_protocol(
     assert any(e["action"] == "api" and e["idIsNull"] and e["status"] == 204 for e in events)
     report["callbackShapeVerified"] = True
 
-    kubectl("exec", "auth", "--", "rm", "/tmp/deny-read")
+    kubectl("exec", "auth", "--", "rm", "/tmp/deny-read")  # nosec B108 # Private fixture flag.
     status, _, body = request(18888, index, context, reader)
     assert status == 200
     child = next(line for line in body.decode().splitlines() if line and not line.startswith("#"))

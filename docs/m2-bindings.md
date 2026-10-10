@@ -42,12 +42,16 @@ garbage collection. That lifecycle remains operator work.
 The caller owns the resource client's transport lifetime. Cloudcoil's Config
 context does not close HTTP transports; the probe explicitly closes both clients.
 
-Cloudcoil is pinned directly in package metadata and `uv.lock` to
+The original live probe used Cloudcoil at
 [`e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8`](https://github.com/cloudcoil/cloudcoil/tree/e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8).
 Reviewed the resource models, async create/get/patch clients, JSON Patch guards,
 HTTP errors, kubeconfig TLS setup and transport lifecycle used by this slice.
-The upstream tag is `0.8.0`, but the package reports `0.5.0.dev0`; the commit is
-the dependency identity. Direct-reference metadata keeps the pin in built wheels.
+The upstream tag is `0.8.0`, but that Git package reports `0.5.0.dev0`.
+The dependency now uses the registry package with Kubernetes and operator
+extras; `uv.lock` resolves version `0.8.0`. The unit suite passes against that
+release. The recorded live result retains its original dependency identity;
+the live probe has not been repeated with the registry package. Future probe
+results record the installed version without claiming a Git revision.
 The optional upstream pytest cluster plugin is disabled because this repository
 uses its own owned Kind workflow. Four narrow Pyrefly suppressions cover
 Cloudcoil's documented concrete wire literals over mutable base fields; runtime

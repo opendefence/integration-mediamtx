@@ -6,8 +6,8 @@ from uuid import UUID
 
 _LIMITS = {
     "user": 256,
-    "password": 4096,
-    "token": 8192,
+    "password": 4096,  # nosec B105 # Field length limit.
+    "token": 8192,  # nosec B105 # Field length limit.
     "action": 32,
     "path": 512,
     "protocol": 32,

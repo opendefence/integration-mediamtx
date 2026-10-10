@@ -20,6 +20,9 @@ jobs:
           uv-version: "0.12.13"
       - run: make check
       - run: uv run --locked prek run --all-files
+        # Branch protection guards local commits, not validation after a push to main.
+        env:
+          SKIP: no-commit-to-branch
       - run: make build
 
   snyk:

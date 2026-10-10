@@ -17,7 +17,7 @@ BINDING = UUID(int=10)
 OTHER_OWNER = UUID(int=2)
 STREAM = StreamPath(tool="ipcam", owner_id=OWNER)
 OTHER_STREAM = StreamPath(tool="ipcam", owner_id=OTHER_OWNER)
-PASSWORD = "fixture_password_not_for_release_1234"
+PASSWORD = "fixture_password_not_for_release_1234"  # nosec B105 # pragma: allowlist secret - Test-only credential
 GRANT = MediaGrant(
     id="g_" + "A" * 22,
     subject_id=OWNER,
@@ -66,8 +66,8 @@ def allowed(  # noqa: PLR0913 - Tests vary request, grant, policy, time and depl
 
 def test_scoped_read_admission() -> None:
     assert allowed()
-    assert allowed(PAYLOAD | {"token": "", "futureField": {"ignored": True}})
-    assert allowed(PAYLOAD | {"id": str(UUID(int=3)), "query": "password=do-not-retain"})
+    assert allowed(PAYLOAD | {"token": "", "futureField": {"ignored": True}})  # nosec B105 # Optional token is empty.
+    assert allowed(PAYLOAD | {"id": str(UUID(int=3)), "query": "password=do-not-retain"})  # nosec B105 # Test-only query.
     assert allowed(policy=replace(POLICY, read_all=False, read_paths=frozenset({STREAM})))
     assert allowed(policy=replace(POLICY, approval_deadline=None))
 
@@ -111,14 +111,15 @@ def test_protocol_mapping_requires_explicit_deployment_enablement(upstream: str,
         {},
         PAYLOAD | {"user": ""},
         PAYLOAD | {"user": "g_" + "B" * 22},
-        PAYLOAD | {"password": "", "token": ""},
-        PAYLOAD | {"password": "", "token": PASSWORD},
-        PAYLOAD | {"password": "wrong", "token": "wrong"},
-        PAYLOAD | {"token": "conflicting-token"},
-        PAYLOAD | {"password": "\ud800", "token": ""},
-        PAYLOAD | {"password": "é", "token": "é"},
-        PAYLOAD | {"password": None},
-        PAYLOAD | {"token": None},
+        PAYLOAD | {"password": "", "token": ""},  # nosec B105 # Empty credentials must fail.
+        PAYLOAD | {"password": "", "token": PASSWORD},  # nosec B105 # Empty password must fail.
+        PAYLOAD | {"password": "wrong", "token": "wrong"},  # nosec B105 # pragma: allowlist secret - Invalid credential
+        PAYLOAD | {"token": "conflicting-token"},  # nosec B105 # Deliberately conflicting test token.
+        # Bandit cannot report a literal lone surrogate; construct the same invalid value.
+        PAYLOAD | {"password": chr(0xD800), "token": ""},  # nosec B105 # Empty token in malformed request.
+        PAYLOAD | {"password": "é", "token": "é"},  # nosec B105 # Deliberately invalid test credential.
+        PAYLOAD | {"password": None},  # nosec B105 # Null credentials must fail.
+        PAYLOAD | {"token": None},  # nosec B105 # Null credentials must fail.
         PAYLOAD | {"action": None},
         PAYLOAD | {"path": []},
         PAYLOAD | {"protocol": "rtsps"},
@@ -212,7 +213,7 @@ def test_invalid_core_projection_cannot_be_constructed(change: dict[str, Any]) -
         {"action": "publish"},
         {"protocols": frozenset()},
         {"protocols": frozenset({"moq"})},
-        {"password": "short"},
+        {"password": "short"},  # nosec B105 # pragma: allowlist secret - Invalid credential
         {"password": "é" * 32},
         {"expires_at": NOW},
         {"expires_at": NOW + timedelta(hours=24, microseconds=1)},

@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import hashlib
 import json
-import subprocess
+import subprocess  # nosec B404 # Harness invokes local kubectl with an argument vector.
 import sys
 from contextlib import AsyncExitStack
 from datetime import UTC, datetime
@@ -29,7 +29,7 @@ def kubectl(*args: str, data: object = None) -> str:
     expected = "mediamtx-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]
     if cluster != expected:
         raise ValueError("Refusing a cluster not owned by this checkout")
-    return subprocess.run(
+    return subprocess.run(  # nosec B603 B607 # Developer kubectl from PATH, shell-free arguments.
         [
             "kubectl",
             "--kubeconfig",
@@ -180,7 +180,6 @@ def main() -> None:
             kubectl("delete", "crd", *installed, "--wait=true", "--timeout=60s")
     report.update(
         coreCrdSourceSha256=hashlib.sha256(source).hexdigest(),
-        cloudcoilRevision="e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8",
         cloudcoilVersion=version("cloudcoil"),
         pythonVersion=sys.version.split()[0],
         packageSourceSha256={

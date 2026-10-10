@@ -14,7 +14,7 @@ from odintegration_mediamtx.policy import EffectivePolicy, MediaGrant, authorize
 
 FIXTURES = Path("/fixtures")
 GRANTS = json.loads((FIXTURES / "credentials.json").read_text())
-EVENTS = Path("/tmp/events.jsonl")
+EVENTS = Path("/tmp/events.jsonl")  # nosec B108 # Private single-container fixture filesystem.
 START = datetime.now(UTC)
 MEDIA_GRANTS: dict[str, MediaGrant] = {}
 POLICIES: dict[str, EffectivePolicy] = {}
@@ -70,9 +70,9 @@ class Callback(BaseHTTPRequestHandler):
                 media_grant = MEDIA_GRANTS.get(request.get("user"))
                 policy = POLICIES.get(request.get("user"))
                 now = datetime.now(UTC)
-                if media_grant and media_grant.action == "read" and Path("/tmp/deny-read").exists():
+                if media_grant and media_grant.action == "read" and Path("/tmp/deny-read").exists():  # nosec B108
                     media_grant = replace(media_grant, revoked_at=now)
-                if policy and Path("/tmp/stale-policy").exists():
+                if policy and Path("/tmp/stale-policy").exists():  # nosec B108 # Fixture-controlled flag.
                     policy = replace(policy, valid_until=now)
                 allowed = authorize_media(
                     request, media_grant, policy, now=now, enabled_protocols=frozenset({"rtsps", "hls"})
@@ -99,7 +99,7 @@ class Callback(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     HTTPSServer(
-        ("0.0.0.0", 8443),
+        ("0.0.0.0", 8443),  # nosec B104 # Private test Pod must accept MediaMTX callbacks.
         Callback,
         certfile=str(FIXTURES / "server.crt"),
         keyfile=str(FIXTURES / "server.key"),
