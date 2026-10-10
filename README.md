@@ -27,3 +27,6 @@ See the [decision record](docs/decisions/0001-foundation.md) and the
 The [M1 contracts](docs/m1-contracts.md), [protocol findings](docs/m1-findings.md)
 and [reproducible spike](spikes/m1/README.md) record the first integration checks
 and the remaining Core and routing gates.
+The [M2 policy implementation](docs/m2-policy.md) adds canonical stream paths and
+scoped admission checks with explicit fresh Core policy inputs. The public API
+and operator remain pending their shared contracts.

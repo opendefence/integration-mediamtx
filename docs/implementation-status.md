@@ -1,10 +1,11 @@
 # Implementation status
 
-Date: 2026-10-10. Gate: M1 protocol spike and contract checkpoint saved.
-External Core and deployment decisions remain open. M2 has not started.
+Date: 2026-10-10. Gate: M2 independent policy slice complete and tested.
+The remaining Core-dependent API/operator work is gated. M3 has not started.
 
-Reviewed implementation HEAD: `1248079bef9cd1526418168d2d62ed7ecc575cea`.
-M1 spike commit: `d3da9cd`. Contract and evidence commit: `1248079`.
+Reviewed implementation HEAD: `05f16870e7c612d8af47e4fed9e3838e53db2f8f`.
+M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
+The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
 Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit ID.
 
@@ -34,11 +35,24 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   See [findings](m1-findings.md) and the [result record](m1-results.json).
 - Updated OpenAPI design gates and its secure-protocol mapping description.
   No public API or operator was added.
+- Implemented canonical UUID normalization, compact media paths and versioned
+  stream IDs. Reject path aliases and complete-segment ownership failures.
+- Added immutable grant and effective-policy models, callback normalization and
+  constant-time scoped admission. Deny unknown or stale state, pending accounts,
+  removed assignments, replaced bindings, revoked grants and expired deadlines.
+- Added regression cases for both audited policy failures. A read credential
+  cannot gain publish or control permissions from its owner's wider access.
+- Reused the live protocol runner with the actual package source and explicit
+  policy fixtures. Recorded source hashes and evidence in
+  [M2 results](m2-results.json). See [M2 policy](m2-policy.md) for the exact scope.
+- Rechecked the Core handoff hash and prototype HEAD. Both remain unchanged
+  from the M1 sources, and no agreed production contract was found there.
 
 ## Evidence
 
 - `make check`: passed. Ruff lint and format passed. Strict Pyrefly reported
-  zero errors. The lock check passed. Pytest reported 10 passed.
+  zero errors. The lock check passed. Pytest reported 126 passed: 48 path cases,
+  68 admission cases and 10 foundation cases.
 - `make build`: passed. Both the source distribution and wheel were built.
 - `uv run --locked prek validate-config .pre-commit-config.yaml`: passed.
 - `uv run --locked prek run --all-files`: all four hooks passed after staging.
@@ -59,8 +73,8 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - The callback event sample and current fixture Pod logs passed generated-secret
   checks. Historical containers, platform logs and traces were not audited.
 - Final `make check`, `make build` and all four prek hooks passed. Strict Pyrefly
-  now includes spike code. The 10 pytest tests cover the foundation; the live
-  spike is a separate explicit command, not part of default pytest.
+  includes spike code. The live spike remains a separate explicit command,
+  not part of default pytest.
 - M1 namespace cleanup and owned cluster cleanup passed. Sibling clusters
   `opendefence-dev` and `tak-server-t0` remained present.
 - Ponytail review: ship this isolated spike and contract checkpoint. Checked
@@ -68,6 +82,22 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   and dependent tooling. No unresolved code findings at the one-runner scope.
   The M0 foundation audit remains valid; the final runtime audit is reserved
   for M5. The product gates below are not waived by this review.
+- M2 live package policy: passed. A stale fixture projection denied new media
+  access while the separate fixture control credential remained usable. Scoped
+  RTSPS/HLS admission, nullable callback IDs and duplicate password/token fields
+  worked with the pinned MediaMTX runtime.
+- M2 read-after-denial delivered 26,508 MPEG-TS bytes. Paginated session removal
+  then denied query, cookie and segment requests. Two kicks and immediate
+  verification took 0.061 seconds locally, after admission denial was set.
+- Callback shutdown, wrong-pin denial and broken-prefix negative assertions
+  still passed. Current Pod logs and sampled callback events passed secret checks.
+- M2 namespace and owned cluster cleanup passed. Both sibling clusters remained.
+  A conflicting port forward on 18443 was left running; this fixture moved to
+  28443. No unrelated process or resource was stopped.
+- Ponytail review before M2 commits: checked module callers, parsers, grant and
+  policy validation, time boundaries, secret representations, fixture imports,
+  live assertions and cleanup. Ship this independent slice. No unresolved code
+  findings at the pure-policy and one-runner scope. This is not the M5 audit.
 
 ## Runtime record
 
@@ -96,6 +126,9 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - All fixture images were loaded through named OCI archives. Pods used
   `imagePullPolicy: Never`. Registry fetches were allowed before import; this
   is not a full offline-install test. No application runtime image was built.
+- M2 reused the exact ARM64 images and tool versions above. The callback mounted
+  the checked-in package modules; their measured hashes are in `m2-results.json`.
+  Package source was tested without an API/operator runtime image.
 
 ## Skills and model evidence
 
@@ -113,17 +146,21 @@ M1 used the user's explicit confirmation, “Switched; resume M1”, as evidence
 for the requested `gpt-6-astra / xhigh` setting. Independent session metadata
 was not available. This is the confirmation route allowed by plan section 13.
 
-The next stage requires `gpt-6.1-sol / high`. Stop before M2 until the user
-confirms that setting or explicitly waives the gate. Start only its independent
-policy slice while the external contracts below remain unresolved.
+M2 used the user's explicit confirmation, “Switched; resume M2”, as evidence
+for the requested `gpt-6.1-sol / high` setting. Independent session metadata
+was not available. Only the independent policy slice and its protocol proof
+were implemented while the external contracts remain unresolved.
+
+M2 is not fully implemented. The remaining work needs the external decisions
+below. Before a later transition to M3, follow plan section 13 and confirm
+`gpt-6-astra / high`. No M3 review or model substitution is claimed here.
 
 ## Remaining work and limits
 
-M2 can implement canonical IDs and paths, exact grant scope, fresh-policy
-semantics and pure regression tests. It must deny the audited admin-sharing
-and overlapping-owner failures. Use semantic fixtures without pretending that
-Core supplies an agreed policy projection. Add Cloudcoil at a reviewed commit
-only when a real adapter needs it.
+Canonical IDs and paths, exact grant scope, fresh-policy semantics and the
+audited regressions are implemented. The semantic fixtures do not prove that
+Core supplies this projection. Add Cloudcoil at a reviewed commit only when a
+real adapter needs it. There is no local inheritance algorithm or user database.
 
 Production Core binding ownership/schema, policy freshness and revision,
 trusted ForwardAuth headers, identity restore and approval deadlines remain
@@ -144,7 +181,7 @@ TAK-specific support stays deferred until the sibling TAK tasks are complete.
 This includes TAK video XML and cross-repository integration. Existing TAK names
 in the draft API do not advertise runtime support.
 
-The API and operator are not implemented yet. Production policy, RTMPS, SRT,
+The API and operator are not implemented yet. Core policy provenance, RTMPS, SRT,
 WebRTC/ICE, native clients, Core/operator faults, ForwardAuth, release images,
 offline installation, AMD64 and hosted CI execution are not checked.
 Image publishing on `arc-runner-set` is deferred until runtime images exist.

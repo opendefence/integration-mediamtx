@@ -41,8 +41,9 @@ For isolated policy code, use `live/{tool}/{compact-user-id}` with tools `icu`,
 encoded separators, empty or dot segments, noncanonical IDs and trailing slashes.
 Keep the 192-character limit in the draft. Do not enable subordinate channels
 until an actual client needs them. A versioned stream ID encodes the canonical
-path; decoding it never grants access. The spike's UUID-text paths are fixtures,
-not a commitment to legacy path compatibility.
+path; decoding it never grants access. The original M1 spike's UUID-text paths
+are fixtures, not a commitment to legacy path compatibility. M2 uses compact
+paths in the shared parser and protocol runner.
 
 The shared policy function needs these semantics, without assuming CRD fields:
 
