@@ -1,0 +1,27 @@
+{
+  "images": {
+    "media": "docker.io/bluenviron/mediamtx@sha256:dfbb58bf4f3e6c03ce3ee56e92c90395e7cfd96beb51e13fa7d4007f10507586",
+    "python": "docker.io/library/python@sha256:67994a05c712036dbfc4385b4bceafc0ce20df950f54b9ea355582c153bf6157",
+    "traefik": "docker.io/library/traefik@sha256:060f4c0328bebb33be8a73694ea613055c4591ba26493202a1830f964e171995"
+  },
+  "policyImplementation": "odintegration_mediamtx.policy.authorize_media",
+  "packageSourceSha256": {
+    "__init__": "453661edd087cf5d31904f2d8db0d6e82aba913a97ffd68aa0d9643760cc3871",
+    "auth": "394aca32f5b0bb020227424e56122b44790102ef90ea62c68401c589eb3ff2fc",
+    "paths": "8677f9da22d50a51685bcd27f79fad436bd8f943bf3b2d73f57287e486f14aef",
+    "policy": "84d972b459c95428a96db4a78518cbce223a927996f90d49322bc00b82d21f4a"
+  },
+  "rtspsPublish": true,
+  "mediaCredentialDeniedControl": true,
+  "missingWrongPasswordActionPathDenied": true,
+  "staleProjectionDeniesMediaButNotControl": true,
+  "hlsSegmentBytesAfterDenial": 26508,
+  "denialAloneLeavesExistingHlsSessions": true,
+  "hlsKickSeconds": 0.061,
+  "paginatedSessionsMatchedByGrantUsername": 2,
+  "stripPrefixRedirectEscapesPublicRoute": true,
+  "callbackShapeVerified": true,
+  "callbackOutageDeniesNewAccessButNotExistingHls": true,
+  "wrongCallbackPinDeniedAfterListenerRestart": true,
+  "currentPodLogsExcludeCredentials": true
+}

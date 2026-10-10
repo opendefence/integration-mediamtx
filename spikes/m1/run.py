@@ -16,13 +16,18 @@ import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
+from uuid import UUID
+
+from odintegration_mediamtx.paths import StreamPath
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 STATE = ROOT / ".local/m1"
+PACKAGE = ROOT / "src/odintegration_mediamtx"
+PACKAGE_MODULES = ("__init__", "auth", "paths", "policy")
 NAMESPACE = "mediamtx-m1"
-MEDIA_PATH = "live/ipcam/00000000-0000-4000-8000-000000000001"
-OTHER_PATH = "live/ipcam/00000000-0000-4000-8000-000000000002"
+MEDIA_PATH = str(StreamPath(tool="ipcam", owner_id=UUID("00000000-0000-4000-8000-000000000001")))
+OTHER_PATH = str(StreamPath(tool="ipcam", owner_id=UUID("00000000-0000-4000-8000-000000000002")))
 PREFIX = "/integrations/mediamtx/media/hls"
 PUBLISHER = "g_" + "P" * 22
 READER = "g_" + "R" * 22
@@ -85,7 +90,19 @@ def pod(name: str, image: str, command: list[str]) -> dict[str, Any]:
             ],
             "volumes": [
                 {"name": "fixtures", "secret": {"secretName": "fixtures"}},
-                {"name": "config", "configMap": {"name": "config"}},
+                {
+                    "name": "config",
+                    "configMap": {
+                        "name": "config",
+                        "items": [
+                            {"key": name, "path": name} for name in ("callback.py", "mediamtx.yml", "traefik.yml")
+                        ]
+                        + [
+                            {"key": "package-" + module, "path": f"odintegration_mediamtx/{module}.py"}
+                            for module in PACKAGE_MODULES
+                        ],
+                    },
+                },
             ],
         },
     }
@@ -156,7 +173,7 @@ def forward(name: str, ports: list[str], log: Path) -> subprocess.Popen[bytes]:
         if log.read_text().count("Forwarding from") == len(ports):
             return process
         if process.poll() is not None:
-            raise RuntimeError("Port forward failed; check for occupied local ports")
+            raise RuntimeError("Port forward failed: " + log.read_text()[-1000:])
         time.sleep(0.1)
     process.terminate()
     process.wait(timeout=10)
@@ -222,6 +239,12 @@ def check_protocol(
     assert request(18888, copied_query_url, context)[0] == 200
     assert request(18888, copied_cookie_url, context, {"Cookie": cookie})[0] == 200
 
+    kubectl("exec", "auth", "--", "touch", "/tmp/stale-policy")
+    assert request(18888, index, context, reader)[0] == 401
+    assert api("paths/list")[0] == 200
+    kubectl("exec", "auth", "--", "rm", "/tmp/stale-policy")
+    report["staleProjectionDeniesMediaButNotControl"] = True
+
     # This fixture flag simulates a revoked/expired reader, not a Core resource.
     kubectl("exec", "auth", "--", "touch", "/tmp/deny-read")
     assert request(18888, index, context, reader)[0] == 401
@@ -258,11 +281,11 @@ def check_protocol(
     assert json.loads(api("hls/sessions/list")[2])["itemCount"] == 0
     assert request(18888, index, context, reader)[0] == 401
 
-    status, headers, _ = request(18443, PREFIX + f"/{MEDIA_PATH}/index.m3u8", context, reader)
+    status, headers, _ = request(28443, PREFIX + f"/{MEDIA_PATH}/index.m3u8", context, reader)
     assert status == 302
     location = headers["Location"]
     assert location.startswith(f"/{MEDIA_PATH}/") and not location.startswith(PREFIX)
-    assert request(18443, location, context, reader)[0] == 404
+    assert request(28443, location, context, reader)[0] == 404
     report["stripPrefixRedirectEscapesPublicRoute"] = True
 
     event_log = kubectl("exec", "auth", "--", "cat", "/tmp/events.jsonl")
@@ -311,7 +334,14 @@ def main() -> None:
         run("podman", "tag", image, LOCAL_IMAGES[name])
         run("podman", "save", "--format", "oci-archive", "-o", str(archive), LOCAL_IMAGES[name])
         run("bash", str(ROOT / "scripts/kind.sh"), "load", str(archive))
-    report: dict[str, Any] = {"images": IMAGES}
+    package_source = {module: (PACKAGE / (module + ".py")).read_text() for module in PACKAGE_MODULES}
+    report: dict[str, Any] = {
+        "images": IMAGES,
+        "policyImplementation": "odintegration_mediamtx.policy.authorize_media",
+        "packageSourceSha256": {
+            module: hashlib.sha256(source.encode()).hexdigest() for module, source in package_source.items()
+        },
+    }
     forwards: list[subprocess.Popen[bytes]] = []
     credentials: dict[str, Any] = {}
     kubectl("create", "namespace", NAMESPACE)
@@ -340,7 +370,7 @@ def main() -> None:
             fingerprint = hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate)).hexdigest()
             credentials = {
                 "control": {"action": "api", "path": "", "protocols": [""]},
-                PUBLISHER: {"action": "publish", "path": MEDIA_PATH, "protocols": ["rtsp"]},
+                PUBLISHER: {"action": "publish", "path": MEDIA_PATH, "protocols": ["rtsps"]},
                 READER: {"action": "read", "path": MEDIA_PATH, "protocols": ["hls"]},
             }
             for grant in credentials.values():
@@ -411,7 +441,8 @@ def main() -> None:
                         "callback.py": (HERE / "callback.py").read_text(),
                         "mediamtx.yml": json.dumps(media),
                         "traefik.yml": json.dumps(traefik),
-                    },
+                    }
+                    | {"package-" + module: source for module, source in package_source.items()},
                 }
             )
             apply(pod("auth", LOCAL_IMAGES["python"], ["python", "/config/callback.py"]))
@@ -446,7 +477,7 @@ def main() -> None:
             publisher["spec"]["restartPolicy"] = "OnFailure"
             apply(publisher)
             forwards.append(forward("media", ["19997:9997", "18888:8888"], local / "media-forward.log"))
-            forwards.append(forward("traefik", ["18443:8443"], local / "traefik-forward.log"))
+            forwards.append(forward("traefik", ["28443:8443"], local / "traefik-forward.log"))
             check_protocol(
                 ssl.create_default_context(cafile=str(local / "server.crt")), credentials, report, forwards, local
             )
