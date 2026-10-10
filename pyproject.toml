@@ -5,16 +5,22 @@ description = "OpenDefence MediaMTX integration"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    "cloudcoil @ git+https://github.com/cloudcoil/cloudcoil.git@e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8",
+    "cloudcoil[kubernetes,operator]",
 ]
 
 [dependency-groups]
 dev = [
+    "cloudcoil[test]",
     "pytest>=9.1.1,<10.0",
+    "coverage>=7.16.0,<8.0",
+    "pytest-cov>=7.1.0,<8.0",
     "ruff>=0.16.7,<1.0",
+    "bandit>=1.9.4,<2.0",
     "pyrefly>=1.3.0,<2.0",
     "prek>=0.5.2,<1.0",
-    "types-pyyaml>=6.0.12,<7.0",
+    "pytest-asyncio>=1.4.0,<2.0",
+    "bump-my-version>=1.5.1,<2.0",
+    "detect-secrets>=1.5.0,<2.0",
 ]
 
 [tool.ruff]
