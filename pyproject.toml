@@ -24,7 +24,7 @@ ignore = ["PLR2004"]
 
 [tool.pyrefly]
 preset = "strict"
-project-includes = ["src", "tests"]
+project-includes = ["src", "tests", "spikes"]
 search-path = ["src", "."]
 python-version = "3.14"
 

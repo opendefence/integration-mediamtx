@@ -1,0 +1,5 @@
+{
+  "media": "docker.io/bluenviron/mediamtx@sha256:dfbb58bf4f3e6c03ce3ee56e92c90395e7cfd96beb51e13fa7d4007f10507586",
+  "python": "docker.io/library/python@sha256:67994a05c712036dbfc4385b4bceafc0ce20df950f54b9ea355582c153bf6157",
+  "traefik": "docker.io/library/traefik@sha256:060f4c0328bebb33be8a73694ea613055c4591ba26493202a1830f964e171995"
+}
