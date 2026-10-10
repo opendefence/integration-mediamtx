@@ -4,10 +4,11 @@ Date: 2026-10-10. Gate: M2 policy, identity and binding adapters implemented and
 Production API/operator authorization needs Core's effective-policy contract.
 M3 has not started.
 
-Reviewed implementation HEAD: `4a1d8b4478849977eb347c948303c057f268d13a`.
+Reviewed implementation HEAD: `5200799cbd46d640ed155b892b1939e55909731e`.
 M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
 The subsequent commits are `f69561c` (Core UUID header) and `a39005f` (binding adapter).
 The user expanded the checks in `47f892e`; `4a1d8b4` fixes the resulting failures.
+The package rename is in `5200799`.
 The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
 Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit ID.
@@ -150,6 +151,18 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Ponytail review before the checks fix: ship. Checked fixture callers, argument
   vectors, admission behavior, exact baseline entries, lock changes, CI and
   historical evidence. No unresolved findings within this maintenance scope.
+- Renamed the Python package and distribution to `opendefence_integration_mediamtx`.
+  Updated imports, build metadata, the lockfile, both spike runners, callback
+  mount paths and documentation. `make check` passed all 176 tests; both builds
+  and all applicable prek hooks passed. The built wheel imports all six modules
+  in isolation and includes `py.typed`. Fixture mount paths match the source.
+- Preserved the persisted binding ownership label and all historical live
+  result records. Tests use the original stored label independently of the
+  implementation constant. External Python callers must use the new import;
+  no compatibility alias was added. Reverting `5200799` restores the old package.
+- Ponytail review before the rename commit: ship. Checked all imports, build
+  artifacts, fixture mounts, binding ownership and evidence references. No
+  unresolved findings within the rename scope. Live probes were not repeated.
 
 ## Runtime record
 
