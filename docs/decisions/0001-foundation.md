@@ -9,9 +9,10 @@ Namespace Secrets hold credentials. Do not add a user database or sidecars.
 
 Use the development settings from TAK prototype revision
 `b332e527c7dedf5e3f0a972b792c7d697dcace6b`: uv, Ruff, strict Pyrefly,
-pytest and prek. Use Make for task entry points. The repository has no task
-runner dependency. Do not copy Java, JNI, certificate packaging, SQL or legacy
-private package indexes.
+pytest and prek. Use Task for task entry points, as requested after the original
+foundation work. Shared development clusters use the base repository's tasks;
+protocol probes keep their isolated owned cluster. Do not copy Java, JNI,
+certificate packaging, SQL or legacy private package indexes.
 
 Runtime dependencies are deferred until their code is added. Pin Cloudcoil to
 a reviewed commit when the Core adapter needs it. The draft OpenAPI file remains

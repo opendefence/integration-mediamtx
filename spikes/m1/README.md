@@ -12,10 +12,10 @@ Start Podman and install Kind v0.33.0, kubectl and OpenSSL. Use the configured
 Python 3.14 environment. From the repository root:
 
 ```sh
-make sync
-make kind-up
+task sync
+task kind:up
 uv run --locked python spikes/m1/run.py
-make kind-down
+task kind:down
 ```
 
 If Kind is installed in `.local/bin`, add that directory to PATH first. Run the
@@ -40,7 +40,7 @@ five minutes; this is not the production freshness contract.
 Do not run Python with `-O`; that would disable assertions.
 
 The runner deletes the namespace and port forwards on completion or failure.
-An abrupt process termination can leave fixtures; use `make kind-down` to remove
+An abrupt process termination can leave fixtures; use `task kind:down` to remove
 only this checkout's owned cluster. `.local/m1/results.json` contains the last
 successful report. `.local/m1/failure.log` contains password-redacted diagnostic
 logs after a failure. Both are ignored, as are image archives and temporary

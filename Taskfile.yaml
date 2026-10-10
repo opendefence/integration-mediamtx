@@ -1,0 +1,70 @@
+version: "3"
+
+vars:
+  BASE_DIR: '{{.BASE_DIR | default (printf "%s/../base" .ROOT_DIR)}}'
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  sync:
+    desc: Install the locked Python environment
+    cmds:
+      - uv sync --locked
+
+  check:
+    desc: Check the lockfile, lint, formatting, types and tests
+    cmds:
+      - uv lock --check
+      - uv run --locked ruff check .
+      - uv run --locked ruff format --check .
+      - uv run --locked pyrefly check
+      - uv run --locked pytest
+
+  test:
+    desc: Run the unit tests
+    cmds:
+      - uv run --locked pytest
+
+  build:
+    desc: Build the source distribution and wheel
+    cmds:
+      - uv build --no-sources
+
+  base:up:
+    desc: Bring up the base development cluster from the base checkout
+    dir: "{{.BASE_DIR}}"
+    cmds:
+      - task up {{.CLI_ARGS}}
+
+  base:status:
+    desc: Show the base development cluster status
+    dir: "{{.BASE_DIR}}"
+    cmds:
+      - task status {{.CLI_ARGS}}
+
+  base:down:
+    desc: Delete the base development cluster and keep its registries
+    dir: "{{.BASE_DIR}}"
+    cmds:
+      - task down {{.CLI_ARGS}}
+
+  kind:up:
+    desc: Create the isolated cluster for protocol and binding probes
+    cmds:
+      - bash scripts/kind.sh up
+
+  kind:load:
+    desc: Load an image archive into the isolated probe cluster
+    requires:
+      vars: [ARCHIVE]
+    cmds:
+      - bash scripts/kind.sh load {{.ARCHIVE | shellQuote}}
+
+  kind:down:
+    desc: Delete only the isolated cluster owned by this checkout
+    cmds:
+      - bash scripts/kind.sh down

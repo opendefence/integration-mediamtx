@@ -12,7 +12,7 @@ def test_package_import() -> None:
 
 
 def test_draft_separates_public_api_and_private_callback() -> None:
-    contract = json.loads((Path(__file__).parents[1] / "openapi.json").read_text())
+    contract = json.loads((Path(__file__).parents[1] / "docs/openapi.json").read_text())
     assert contract["openapi"] == "3.1.0"
     assert contract["security"] == [{"ClientCertificate": []}]
     assert contract["x-core-identity-header"]["default"] == DEFAULT_USER_UUID_HEADER

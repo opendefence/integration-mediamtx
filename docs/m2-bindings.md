@@ -75,9 +75,9 @@ install the source file's RBAC or service accounts. Run lifecycle commands
 serially:
 
 ```sh
-PATH="$PWD/.local/bin:$PATH" make kind-up
+PATH="$PWD/.local/bin:$PATH" task kind:up
 uv run --locked spikes/m2/run_bindings.py --crds ../opendefence_core_crds.yaml
-PATH="$PWD/.local/bin:$PATH" make kind-down
+PATH="$PWD/.local/bin:$PATH" task kind:down
 ```
 
 The [live result](m2-bindings-results.json) records eight concurrent creators

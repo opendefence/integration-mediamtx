@@ -1,4 +1,4 @@
-# Integration MediaMTX: audit and implementation plan
+# Integration MediaMTX: original audit and implementation plan
 
 Date: 2026-10-10
 
@@ -11,7 +11,8 @@ Status: planning document. No repository or deployment was changed.
 Implementation update, 2026-10-10: repository foundation work has started.
 The user deferred TAK support until the related sibling repository work is
 complete. This includes TAK video XML profiles and cross-repository integration.
-See `docs/implementation-status.md` for current work and evidence.
+This original plan is retained as a design reference. See
+[implementation status](implementation-status.md) for current work and evidence.
 
 ## 1. Recommended result
 

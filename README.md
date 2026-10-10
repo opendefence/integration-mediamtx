@@ -1,11 +1,15 @@
 # OpenDefence MediaMTX integration
 
 This repository starts the replacement for the legacy MediaMTX integration.
-It is not a running API or operator yet. Read the
-[implementation plan](integration-mediamtx-plan.md) and the
-[draft API contract](openapi.json).
+It is not a running API or operator yet. The
+[original implementation plan](docs/integration-mediamtx-plan.md) and
+[original API draft](docs/openapi.json) are design references. See the
+[implementation status](docs/implementation-status.md) for current work and evidence.
 
-Use Python 3.14 and uv. Run `make sync`, then `make check` and `make build`.
+Use Python 3.14, uv and Task 3.51.1. Install Task with `mise install`, or use
+the same version from the official Task distribution. Run `task sync`, then
+`task check` and `task build`. Run `task --list` to see the entry points.
+If mise is not active in your shell, prefix commands with `mise exec --`.
 The Python package is `opendefence_integration_mediamtx`.
 Run `uv run --locked prek install` to install the local checks.
 Run `uv run --locked prek run --all-files` to check the whole repository.
@@ -15,16 +19,34 @@ probe results. Review each new finding before adding a baseline entry; do not
 regenerate it to silence unknown credentials. Known test values use inline
 allowlist comments. New credentials remain blocked.
 
-For protocol tests, install Kind v0.33.0 and start Podman. Run `make kind-up`.
+For the shared development cluster, keep a current checkout of
+[opendefence/base](https://github.com/opendefence/base) at `../base` and follow
+its prerequisites and kube-context instructions. This repository delegates to
+the [base taskfiles](https://github.com/opendefence/base/tree/main/taskfiles):
+
+```sh
+task base:up
+task base:status
+```
+
+The base `up` task starts registries, creates Kind and deploys the base operators.
+Use `BASE_DIR=/path/to/base` for another checkout location. Pass base variables
+after `--`, for example `task base:up -- CONTAINER_RUNTIME=podman`.
+`task base:down` deletes that development cluster and keeps its registry data.
+These tasks use the base checkout's workflow; update an older checkout to obtain
+the current operator deployment steps. Run cluster lifecycle commands serially.
+
+For the isolated protocol probes, install Kind v0.33.0 and start Podman.
+Run `task kind:up`.
 The script creates a separate cluster for this checkout. It stores the kubeconfig
 under `.local/kind/` and prints the explicit context. It does not change your
-default kubeconfig. Run `make kind-load ARCHIVE=/path/to/image.tar` to load a
+default kubeconfig. Run `task kind:load ARCHIVE=/path/to/image.tar` to load a
 Podman image archive. Use `imagePullPolicy: Never` in offline test workloads.
-Run `make kind-down` to delete only the cluster owned by this checkout.
+Run `task kind:down` to delete only the cluster owned by this checkout.
 After failed creation, use the same cleanup command before retrying.
 Run cluster commands one at a time.
 See the [Kind rootless requirements](https://kind.sigs.k8s.io/docs/user/rootless/)
-before testing UDP traffic. No application workload is installed by these tasks.
+before testing UDP traffic. The isolated Kind lifecycle tasks install no application workload.
 
 TAK profiles and integration with the sibling TAK repositories are deferred until
 their current work is complete. Do not advertise TAK support yet.
