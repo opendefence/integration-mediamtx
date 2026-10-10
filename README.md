@@ -12,6 +12,9 @@ the same version from the official Task distribution. Run `task sync`, then
 `task check` and `task build`. Run `task --list` to see the entry points.
 If mise is not active in your shell, prefix commands with `mise exec --`.
 The Python package is `opendefence_integration_mediamtx`.
+Its Core resource models come from `lib-opendefence-core` on the configured
+[pypilocal index](https://nexus.dev.pvarki.fi/repository/pypilocal/).
+Use that index when installing a built wheel outside this uv project.
 Run `uv run --locked prek install` to install the local checks.
 Run `uv run --locked prek run --all-files` to check the whole repository.
 Bandit exceptions identify test fixtures and fixed developer-tool invocations.

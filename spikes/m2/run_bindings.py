@@ -16,12 +16,14 @@ import yaml
 from cloudcoil.client import Config
 from cloudcoil.errors import APIError
 
-from opendefence_integration_mediamtx.bindings import CoreUser, UserBinding, ensure_binding, set_binding_synced
+from lib_opendefence_core.models.v1alpha1 import User, UserBinding
+
+from opendefence_integration_mediamtx.bindings import ensure_binding, set_binding_synced
 from opendefence_integration_mediamtx.operator import binding_keys, create_operator
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMESPACE = "mediamtx-m2-bindings"
-USER_NAME = "mediamtx-m2-binding-probe"
+USER_NAME = "mediamtxm2bindingprobe"
 CRD_NAMES = {"users.platform.opendefence.fi", "userbindings.platform.opendefence.fi"}
 
 
@@ -57,7 +59,7 @@ def create_user() -> None:
             "apiVersion": "platform.opendefence.fi/v1alpha1",
             "kind": "User",
             "metadata": {"name": USER_NAME},
-            "spec": {"callsign": "M2-PROBE"},
+            "spec": {"callsign": USER_NAME},
         },
     )
 
@@ -70,7 +72,7 @@ async def exercise(*, run_operator: bool = False) -> dict[str, Any]:  # noqa: PL
     ):
         transports.callback(config.client.close)
         transports.push_async_callback(config.async_client.aclose)
-        users = await CoreUser.async_client(config, cached=False)
+        users = await User.async_client(config, cached=False)
         bindings = await UserBinding.async_client(config, namespace=NAMESPACE, cached=False)
         user = await users.get(USER_NAME)
         created = await asyncio.gather(*(ensure_binding(user, bindings) for _ in range(8)))
@@ -148,7 +150,7 @@ async def exercise(*, run_operator: bool = False) -> dict[str, Any]:  # noqa: PL
 
 
 async def exercise_operator(config: Config) -> dict[str, Any]:  # noqa: PLR0915 - Explicit live reconciliation assertions.
-    users = await CoreUser.async_client(config, cached=False)
+    users = await User.async_client(config, cached=False)
     bindings = await UserBinding.async_client(config, namespace=NAMESPACE, cached=False)
     current_user = await users.get(USER_NAME)
     current_key = binding_keys(current_user, namespace=NAMESPACE)[0]
@@ -289,6 +291,7 @@ def main() -> None:
     report.update(
         coreCrdSourceSha256=hashlib.sha256(source).hexdigest(),
         cloudcoilVersion=version("cloudcoil"),
+        coreModelsVersion=version("lib-opendefence-core"),
         pythonVersion=sys.version.split()[0],
         packageSourceSha256={
             module: hashlib.sha256((ROOT / "src/opendefence_integration_mediamtx" / module).read_bytes()).hexdigest()

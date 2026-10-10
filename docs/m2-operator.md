@@ -55,7 +55,8 @@ uv run --locked mediamtx-operator manifests \
 The generated ClusterRole only reads Core Users. Binding permissions remain in
 the selected namespace. The operator receives no Secret, Core status, deletion,
 CRD installation or RBAC administration permissions. Shared CRDs are not
-generated or installed by this application. Use one replica for this slice.
+generated or installed by this application, including when the shared Core
+models carry Cloudcoil CRD metadata. Use one replica for this slice.
 An operator image has not been built or published.
 
 An internal HTTP diagnostics listener exposes `/healthz`, `/readyz` and
@@ -74,7 +75,7 @@ The existing owned-cluster binding probe also exercises the running operator:
 
 ```sh
 PATH="$PWD/.local/bin:$PATH" task kind:up
-uv run --locked spikes/m2/run_bindings.py --crds ../opendefence_core_crds.yaml --operator
+uv run --locked spikes/m2/run_bindings.py --crds ../core/manifests/crds/crds.yaml --operator
 PATH="$PWD/.local/bin:$PATH" task kind:down
 ```
 
@@ -86,5 +87,8 @@ an unrelated binding and shutdown. The live run passed all assertions and
 fixture/cluster cleanup. The [result record](m2-operator-results.json) includes
 the tested source hashes; the runner writes `.local/m2/operator-results.json`.
 Both sibling clusters remained present. The original binding result record is preserved.
+The operator probe passed again with `lib-opendefence-core` 0.2.1+261010 and
+Core's current CRDs; fixture and owned-cluster cleanup passed. The original
+operator result record remains a Cloudcoil-only checkpoint.
 Live RBAC enforcement and a
 packaged operator deployment remain separate checks. TAK remains deferred.

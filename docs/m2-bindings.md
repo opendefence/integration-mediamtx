@@ -23,7 +23,11 @@ The persisted `app.kubernetes.io/managed-by` value remains
 `odintegration-mediamtx` across the Python package rename, so existing bindings
 retain their ownership identity.
 
-`bindings.py` provides typed models and two resource operations:
+`bindings.py` uses `lib-opendefence-core` 0.2.1+261010 for the `User`,
+`UserBinding`, spec, status and condition models. The package is resolved from
+the explicit [pypilocal index](https://nexus.dev.pvarki.fi/repository/pypilocal/)
+in `pyproject.toml`; other dependencies continue to use their usual indexes.
+The adapter provides resource operations:
 
 - `ensure_binding` takes a fetched Core User and a namespace-scoped Cloudcoil
   client. It atomically creates `mediamtx-<User UUID hex>`. Concurrent losers
@@ -41,7 +45,8 @@ retain their ownership identity.
   User. Positive readiness still requires a matching current User and a caller's
   completed provisioning result; the running operator does not report it.
 
-The User view keeps spec and status opaque. It reads identity from metadata and
+The shared User model validates Core's typed spec and status, including the
+lowercase callsign pattern. The adapter reads identity from metadata and
 does not resolve roles or groups. Callers must fetch the current User; a stored
 snapshot is not policy freshness evidence. No grants or credentials are created
 by these binding operations. They do not set owner references: cleanup must deny
@@ -65,6 +70,12 @@ uses its own owned Kind workflow. Four narrow Pyrefly suppressions cover
 Cloudcoil's documented concrete wire literals over mutable base fields; runtime
 Pydantic validation still enforces those literals.
 
+The preceding four suppressions describe the original local models. The shared
+models remove those local declarations and suppressions. The adapter still checks
+binding ownership, canonical UIDs, unique conditions and aware transition times
+before writes. Core owns the shared CRDs; Cloudcoil's automatic CRD entry for the
+shared UserBinding model is omitted from this operator's generated manifests.
+
 ## Verification
 
 The unit suite covers header ambiguity, namespace ownership, atomic-create
@@ -81,7 +92,7 @@ serially:
 
 ```sh
 PATH="$PWD/.local/bin:$PATH" task kind:up
-uv run --locked spikes/m2/run_bindings.py --crds ../opendefence_core_crds.yaml
+uv run --locked spikes/m2/run_bindings.py --crds ../core/manifests/crds/crds.yaml
 PATH="$PWD/.local/bin:$PATH" task kind:down
 ```
 
@@ -92,6 +103,13 @@ bindings after User recreation and rejection after binding replacement.
 Fixture cleanup and owned cluster removal passed; sibling clusters remained.
 The CRD input hash is
 `105bede6c1dd9f77c9effb6d8525d5882822a6ca67c75f14f2f59f64f106a747`.
+
+The shared-model probe also passed against Core's current CRD source (SHA-256
+`fb2d59fa58e562a1c20c46cc590458e15d249e1f94b777a14b91eecc15c5b79a`).
+It repeated the atomic creation, guarded status, pruning, User recreation and
+replacement checks with Cloudcoil 0.8.0 and `lib-opendefence-core` 0.2.1+261010.
+Its owned cluster, namespace, User and installed CRDs were removed; sibling
+clusters remained. The earlier result record remains historical evidence.
 
 No effective-policy endpoint or revision/expiry projection is defined in these
 CRDs or the inspected Core scaffold. Production media authorization still needs

@@ -351,6 +351,19 @@ wheels = [
 ]
 
 [[package]]
+name = "lib-opendefence-core"
+version = "0.2.1+261010"
+source = { registry = "https://nexus.dev.pvarki.fi/repository/pypilocal/simple/" }
+dependencies = [
+    { name = "cloudcoil" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://nexus.dev.pvarki.fi/repository/pypilocal/packages/lib-opendefence-core/0.2.1+261010/lib_opendefence_core-0.2.1+261010.tar.gz", hash = "sha256:d8dc38f7ec413be09f93f69c8ff5587a1595f17dc1055c40d972343a80ed2f2f" }
+wheels = [
+    { url = "https://nexus.dev.pvarki.fi/repository/pypilocal/packages/lib-opendefence-core/0.2.1+261010/lib_opendefence_core-0.2.1+261010-py3-none-any.whl", hash = "sha256:ec6eaec3dbd9d5166922beffa24b76d592ce68d538051b8cc9c4602f4c249bdc" },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -377,6 +390,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "cloudcoil", extra = ["kubernetes", "operator"] },
+    { name = "lib-opendefence-core" },
 ]
 
 [package.dev-dependencies]
@@ -396,7 +410,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "cloudcoil", extras = ["kubernetes", "operator"] }]
+requires-dist = [
+    { name = "cloudcoil", extras = ["kubernetes", "operator"] },
+    { name = "lib-opendefence-core", specifier = ">=0.2.1,<0.3", index = "https://nexus.dev.pvarki.fi/repository/pypilocal/simple/" },
+]
 
 [package.metadata.requires-dev]
 dev = [

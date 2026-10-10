@@ -13,7 +13,9 @@ from cloudcoil.client import AsyncAPIClient
 from cloudcoil.controller import Request, ResourceKey
 from cloudcoil.errors import APIError, ResourceConflict
 
-from opendefence_integration_mediamtx.bindings import USER_UUID_ANNOTATION, CoreUser, UserBinding
+from lib_opendefence_core.models.v1alpha1 import User, UserBinding, UserSpec
+
+from opendefence_integration_mediamtx.bindings import USER_UUID_ANNOTATION
 from opendefence_integration_mediamtx.operator import binding_keys, create_operator, reconcile_binding
 
 NAMESPACE = "integration-mediamtx"
@@ -23,10 +25,11 @@ BINDING_UID = "01234567-89ab-cdef-0123-456789abcdea"
 NOW = datetime(2026, 10, 10, 12, tzinfo=UTC)
 
 
-def core_user() -> CoreUser:
-    return CoreUser(
-        metadata=ObjectMeta(name="user-alpha", uid=str(SUBJECT), resource_version="5"),
-        spec={"callsign": "ALPHA"},
+def core_user() -> User:
+    return User(
+        kind="User",
+        metadata=ObjectMeta(name="alpha", uid=str(SUBJECT), resource_version="5"),
+        spec=UserSpec(callsign="alpha"),
     )
 
 
@@ -43,7 +46,7 @@ def stored_binding() -> dict[str, Any]:
             "annotations": {USER_UUID_ANNOTATION: str(SUBJECT)},
             "labels": {"app.kubernetes.io/managed-by": "odintegration-mediamtx"},
         },
-        "spec": {"userRef": {"name": "user-alpha"}},
+        "spec": {"userRef": {"name": "alpha"}},
     }
 
 
@@ -60,7 +63,7 @@ class Kubernetes:
     def respond(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         assert request.method in {"GET", "POST", "PATCH"}
-        if request.url.path.endswith("/users/user-alpha"):
+        if request.url.path.endswith("/users/alpha"):
             assert request.method == "GET"
             return httpx.Response(self.user_code, json=self.user)
         assert f"/namespaces/{NAMESPACE}/userbindings" in request.url.path
@@ -98,7 +101,7 @@ class Kubernetes:
         return httpx.Response(200, json=self.binding)
 
 
-def request_for(http: httpx.AsyncClient, users: list[CoreUser] | None = None) -> Request[UserBinding]:
+def request_for(http: httpx.AsyncClient, users: list[User] | None = None) -> Request[UserBinding]:
     bindings = AsyncAPIClient(
         api_version="platform.opendefence.fi/v1alpha1",
         kind=UserBinding,
@@ -110,7 +113,7 @@ def request_for(http: httpx.AsyncClient, users: list[CoreUser] | None = None) ->
     )
     core = AsyncAPIClient(
         api_version="platform.opendefence.fi/v1alpha1",
-        kind=CoreUser,
+        kind=User,
         resource="users",
         subresources=[],
         default_namespace=NAMESPACE,
@@ -122,7 +125,7 @@ def request_for(http: httpx.AsyncClient, users: list[CoreUser] | None = None) ->
     request.name = NAME
     request.namespace = NAMESPACE
     request.resource = None
-    request.client = AsyncMock(side_effect={UserBinding: bindings, CoreUser: core}.get)
+    request.client = AsyncMock(side_effect={UserBinding: bindings, User: core}.get)
     request.cached.return_value.list.return_value = [core_user()] if users is None else users
     return cast(Request[UserBinding], request)
 
@@ -137,7 +140,7 @@ async def test_creates_pending_binding_and_restarts_without_duplicate_or_status_
         # A restarted process has no saved reconciliation state.
         second = await reconcile_binding(request_for(http), namespace=NAMESPACE)
     assert first and second and first.requeue_after == second.requeue_after == 60
-    assert kube.binding and kube.binding["spec"] == {"userRef": {"name": "user-alpha"}}
+    assert kube.binding and kube.binding["spec"] == {"userRef": {"name": "alpha"}}
     status = kube.binding["status"]
     assert status["observedGeneration"] == 2
     assert status["conditions"][0]["status"] == "False"
@@ -185,7 +188,7 @@ async def test_clears_former_readiness_for_orphan_without_deleting_or_retargetin
     ) as http:
         await reconcile_binding(request_for(http, []), namespace=NAMESPACE)
     assert kube.binding and kube.binding["metadata"]["uid"] == BINDING_UID
-    assert kube.binding["spec"] == {"userRef": {"name": "user-alpha"}}
+    assert kube.binding["spec"] == {"userRef": {"name": "alpha"}}
     conditions = kube.binding["status"]["conditions"]
     assert conditions[0]["status"] == "False" and conditions[0]["observedGeneration"] == 2
     assert conditions[1]["type"] == "SessionsDrained" and conditions[1]["status"] == "False"
