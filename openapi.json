@@ -2418,7 +2418,7 @@
           },
           "protocol": {
             "type": "string",
-            "description": "Upstream names include rtsp, rtmp, hls, webrtc, srt and moq. Deny protocols that the deployment does not support.",
+            "description": "Upstream names include rtsp, rtmp, hls, webrtc, srt and moq. RTSPS reports rtsp and RTMPS reports rtmp; the callback cannot attest TLS. Map these to secure public protocols only with verified strict listener configuration. Deny protocols that the deployment does not support.",
             "maxLength": 32,
             "default": ""
           },
@@ -2452,6 +2452,8 @@
     "legacyIntegration": "pvarki/python-mediamtx-rmmtxauthz@1e2d8fea4c80c4391f27d25ed07d57205e39bd9d",
     "mediaMTX": "bluenviron/mediamtx@914e39535ece709919ac325aaeed98d394ed9093 (v1.21.2)"
   },
+  "x-m1-contracts": "docs/m1-contracts.md",
+  "x-m1-evidence": "docs/m1-findings.md",
   "x-design-gates": [
     {
       "id": "tak-support",
@@ -2463,7 +2465,7 @@
     },
     {
       "id": "core-authentication",
-      "decision": "Agree UI session and workload authentication alternatives. This draft enables only the verified mTLS baseline."
+      "decision": "Agree trusted ForwardAuth headers and prevention of alternate ingress, plus UI session and workload authentication alternatives. Verified mTLS is the proposed public baseline; no public authentication adapter is implemented."
     },
     {
       "id": "policy-freshness",
@@ -2471,11 +2473,15 @@
     },
     {
       "id": "http-routing",
-      "decision": "Verify request-prefix removal and Location rewriting with the selected Traefik and MediaMTX versions."
+      "decision": "M1 reproduced a broken HLS redirect with Traefik StripPrefix. Keep the prefix route gated until base approves and tests response Location rewriting or another explicit routing contract."
     },
     {
       "id": "session-revocation",
-      "decision": "Verify active-session removal and fail-closed behavior during operator or control API outages."
+      "decision": "M1 verified paginated HLS session removal and found that callback outage leaves existing HLS sessions readable while denying control calls. Strict outage enforcement remains unverified. Complete other protocol, Core and operator fault tests."
+    },
+    {
+      "id": "sharing-purpose",
+      "decision": "Agree explicit self-use versus sharing purpose and its authorization before implementing issuance. A free-text label is not an authorization input, and any bearer credential can be copied."
     },
     {
       "id": "client-profiles",

@@ -24,3 +24,6 @@ their current work is complete. Do not advertise TAK support yet.
 
 See the [decision record](docs/decisions/0001-foundation.md) and the
 [implementation status](docs/implementation-status.md) for scope and test evidence.
+The [M1 contracts](docs/m1-contracts.md), [protocol findings](docs/m1-findings.md)
+and [reproducible spike](spikes/m1/README.md) record the first integration checks
+and the remaining Core and routing gates.
