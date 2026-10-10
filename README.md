@@ -6,6 +6,7 @@ It is not a running API or operator yet. Read the
 [draft API contract](openapi.json).
 
 Use Python 3.14 and uv. Run `make sync`, then `make check` and `make build`.
+The Python package is `opendefence_integration_mediamtx`.
 Run `uv run --locked prek install` to install the local checks.
 Run `uv run --locked prek run --all-files` to check the whole repository.
 Bandit exceptions identify test fixtures and fixed developer-tool invocations.

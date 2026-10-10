@@ -5,7 +5,13 @@ from uuid import UUID
 
 import pytest
 
-from odintegration_mediamtx.paths import StreamPath, encode_user_id, parse_path, parse_stream_id, parse_user_id
+from opendefence_integration_mediamtx.paths import (
+    StreamPath,
+    encode_user_id,
+    parse_path,
+    parse_stream_id,
+    parse_user_id,
+)
 
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
 COMPACT_OWNER = "AAAAAAAAQACAAAAAAAAAAQ"

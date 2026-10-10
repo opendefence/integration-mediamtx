@@ -13,9 +13,10 @@ from cloudcoil.pydantic import BaseModel
 from cloudcoil.resources import Resource
 from pydantic import ConfigDict, Field
 
-from odintegration_mediamtx.paths import parse_user_id
+from opendefence_integration_mediamtx.paths import parse_user_id
 
 USER_UUID_ANNOTATION = "mediamtx.opendefence.fi/user-uuid"
+# Keep the persisted ownership label stable across Python package renames.
 MANAGED_BY = "odintegration-mediamtx"
 
 

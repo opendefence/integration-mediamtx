@@ -18,6 +18,9 @@ namespaced UserBinding per User and write its `Synced` condition. Core watches
 these observations. The spec only contains `userRef.name`; status only contains
 conditions and observed generation. Binding existence and `Synced=True` do not
 prove assignment, policy freshness or media permission.
+The persisted `app.kubernetes.io/managed-by` value remains
+`odintegration-mediamtx` across the Python package rename, so existing bindings
+retain their ownership identity.
 
 `bindings.py` provides typed models and two resource operations:
 

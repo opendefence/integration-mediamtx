@@ -7,9 +7,9 @@ from uuid import UUID
 
 import pytest
 
-from odintegration_mediamtx.auth import AuthRequest
-from odintegration_mediamtx.paths import StreamPath
-from odintegration_mediamtx.policy import EffectivePolicy, MediaGrant, authorize_media
+from opendefence_integration_mediamtx.auth import AuthRequest
+from opendefence_integration_mediamtx.paths import StreamPath
+from opendefence_integration_mediamtx.policy import EffectivePolicy, MediaGrant, authorize_media
 
 NOW = datetime(2026, 10, 10, 12, tzinfo=UTC)
 OWNER = UUID(int=1)

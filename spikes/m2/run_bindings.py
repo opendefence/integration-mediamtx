@@ -16,7 +16,7 @@ import yaml
 from cloudcoil.client import Config
 from cloudcoil.errors import APIError
 
-from odintegration_mediamtx.bindings import CoreUser, UserBinding, ensure_binding, set_binding_synced
+from opendefence_integration_mediamtx.bindings import CoreUser, UserBinding, ensure_binding, set_binding_synced
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMESPACE = "mediamtx-m2-bindings"
@@ -183,7 +183,7 @@ def main() -> None:
         cloudcoilVersion=version("cloudcoil"),
         pythonVersion=sys.version.split()[0],
         packageSourceSha256={
-            module: hashlib.sha256((ROOT / "src/odintegration_mediamtx" / module).read_bytes()).hexdigest()
+            module: hashlib.sha256((ROOT / "src/opendefence_integration_mediamtx" / module).read_bytes()).hexdigest()
             for module in ("bindings.py", "identity.py")
         },
         namespaceCleanup=True,

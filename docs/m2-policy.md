@@ -8,7 +8,7 @@ the supplied CRD and Core-injected UUID header and adds pinned Cloudcoil.
 
 ## Implemented behavior
 
-[`paths.py`](../src/odintegration_mediamtx/paths.py) normalizes canonical lowercase
+[`paths.py`](../src/opendefence_integration_mediamtx/paths.py) normalizes canonical lowercase
 UUID text and compact Base64URL to one UUID value. Public IDs and media paths use
 the compact form. Paths have exactly three segments: `live/{tool}/{owner}`.
 The parser rejects padding aliases, encoded separators, empty or dot segments,
@@ -17,7 +17,7 @@ Stream IDs have the `s1_` prefix and encode the canonical path. Decoding does
 not authorize the stream. The retained tool names are path categories, not a
 claim that their client profiles are supported.
 
-[`auth.py`](../src/odintegration_mediamtx/auth.py) parses the selected callback
+[`auth.py`](../src/opendefence_integration_mediamtx/auth.py) parses the selected callback
 fields and limits. It accepts missing or null session IDs and ignores unknown
 fields. A supplied session ID must be canonical UUID text. A password/token
 duplicate is accepted; a conflicting or token-only credential is rejected.
@@ -25,7 +25,7 @@ The resulting request retains no token, raw query, IP, session ID or user agent.
 Its representation hides all field values because even a username or path is
 untrusted input. Grant representations also hide the password.
 
-[`policy.py`](../src/odintegration_mediamtx/policy.py) provides immutable semantic
+[`policy.py`](../src/opendefence_integration_mediamtx/policy.py) provides immutable semantic
 `EffectivePolicy` and `MediaGrant` records and `authorize_media()`. These types
 are not a Core wire schema or a Kubernetes Secret serializer. Construction
 rejects malformed records, naive timestamps, empty policy revisions, unsupported
@@ -74,6 +74,9 @@ has a separate fixture-only check and does not depend on media policy freshness.
 The result records source hashes so the tested policy can be identified.
 The original M1 baseline remains in commit `d3da9cd` and `docs/m1-results.json`;
 the current M2 run is recorded separately in `docs/m2-results.json`.
+That historical result names the original `odintegration_mediamtx` package.
+The package is now `opendefence_integration_mediamtx`; the runner uses the new
+module path and records new source hashes on its next run.
 The live run passed RTSPS publishing, HLS reading, stale-projection denial,
 paginated HLS session removal, callback shutdown and certificate pinning checks.
 It retrieved 26,508 MPEG-TS bytes after admission denial, then denied the segment

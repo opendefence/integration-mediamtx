@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from odintegration_mediamtx.auth import AuthRequest
-from odintegration_mediamtx.paths import StreamPath, parse_path
+from opendefence_integration_mediamtx.auth import AuthRequest
+from opendefence_integration_mediamtx.paths import StreamPath, parse_path
 
 _PUBLIC_PROTOCOL = {"rtsp": "rtsps", "rtmp": "rtmps", "hls": "hls", "srt": "srt", "webrtc": "webrtc"}
 MEDIA_PROTOCOLS = frozenset(_PUBLIC_PROTOCOL.values())

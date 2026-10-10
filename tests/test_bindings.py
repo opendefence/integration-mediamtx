@@ -13,8 +13,7 @@ from cloudcoil.client import AsyncAPIClient
 from cloudcoil.errors import APIError, ResourceConflict
 from pydantic import ValidationError
 
-from odintegration_mediamtx.bindings import (
-    MANAGED_BY,
+from opendefence_integration_mediamtx.bindings import (
     USER_UUID_ANNOTATION,
     CoreUser,
     PlatformCondition,
@@ -48,7 +47,7 @@ def stored_binding() -> UserBinding:
                 "resourceVersion": "8",
                 "generation": 2,
                 "annotations": {USER_UUID_ANNOTATION: str(SUBJECT)},
-                "labels": {"app.kubernetes.io/managed-by": MANAGED_BY},
+                "labels": {"app.kubernetes.io/managed-by": "odintegration-mediamtx"},
             },
             "spec": {"userRef": {"name": "user-alpha"}},
         }

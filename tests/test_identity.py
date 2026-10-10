@@ -4,8 +4,8 @@ from uuid import UUID
 
 import pytest
 
-from odintegration_mediamtx.identity import DEFAULT_USER_UUID_HEADER, user_id_from_headers
-from odintegration_mediamtx.paths import encode_user_id
+from opendefence_integration_mediamtx.identity import DEFAULT_USER_UUID_HEADER, user_id_from_headers
+from opendefence_integration_mediamtx.paths import encode_user_id
 
 SUBJECT = UUID("01234567-89ab-cdef-0123-456789abcdef")
 OTHER = UUID("01234567-89ab-cdef-0123-456789abcdea")

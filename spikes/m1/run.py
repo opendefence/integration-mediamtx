@@ -18,12 +18,12 @@ from typing import Any
 from urllib.parse import urljoin
 from uuid import UUID
 
-from odintegration_mediamtx.paths import StreamPath
+from opendefence_integration_mediamtx.paths import StreamPath
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 STATE = ROOT / ".local/m1"
-PACKAGE = ROOT / "src/odintegration_mediamtx"
+PACKAGE = ROOT / "src/opendefence_integration_mediamtx"
 PACKAGE_MODULES = ("__init__", "auth", "paths", "policy")
 NAMESPACE = "mediamtx-m1"
 MEDIA_PATH = str(StreamPath(tool="ipcam", owner_id=UUID("00000000-0000-4000-8000-000000000001")))
@@ -98,7 +98,7 @@ def pod(name: str, image: str, command: list[str]) -> dict[str, Any]:
                             {"key": name, "path": name} for name in ("callback.py", "mediamtx.yml", "traefik.yml")
                         ]
                         + [
-                            {"key": "package-" + module, "path": f"odintegration_mediamtx/{module}.py"}
+                            {"key": "package-" + module, "path": f"opendefence_integration_mediamtx/{module}.py"}
                             for module in PACKAGE_MODULES
                         ],
                     },
@@ -337,7 +337,7 @@ def main() -> None:
     package_source = {module: (PACKAGE / (module + ".py")).read_text() for module in PACKAGE_MODULES}
     report: dict[str, Any] = {
         "images": IMAGES,
-        "policyImplementation": "odintegration_mediamtx.policy.authorize_media",
+        "policyImplementation": "opendefence_integration_mediamtx.policy.authorize_media",
         "packageSourceSha256": {
             module: hashlib.sha256(source.encode()).hexdigest() for module, source in package_source.items()
         },

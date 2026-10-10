@@ -4,7 +4,7 @@ Date: 2026-10-10
 
 Target repository: **`opendefence/integration-mediamtx`**
 
-Proposed Python package: **`odintegration_mediamtx`**
+Proposed Python package: **`opendefence_integration_mediamtx`**
 
 Status: planning document. No repository or deployment was changed.
 

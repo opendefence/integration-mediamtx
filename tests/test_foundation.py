@@ -4,11 +4,11 @@ import json
 from importlib import import_module
 from pathlib import Path
 
-from odintegration_mediamtx.identity import DEFAULT_USER_UUID_HEADER
+from opendefence_integration_mediamtx.identity import DEFAULT_USER_UUID_HEADER
 
 
 def test_package_import() -> None:
-    assert import_module("odintegration_mediamtx").__doc__
+    assert import_module("opendefence_integration_mediamtx").__doc__
 
 
 def test_draft_separates_public_api_and_private_callback() -> None:

@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import override
 from uuid import UUID
 
-from odintegration_mediamtx.paths import parse_path
-from odintegration_mediamtx.policy import EffectivePolicy, MediaGrant, authorize_media
+from opendefence_integration_mediamtx.paths import parse_path
+from opendefence_integration_mediamtx.policy import EffectivePolicy, MediaGrant, authorize_media
 
 FIXTURES = Path("/fixtures")
 GRANTS = json.loads((FIXTURES / "credentials.json").read_text())
