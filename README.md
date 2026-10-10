@@ -1,0 +1,26 @@
+# OpenDefence MediaMTX integration
+
+This repository starts the replacement for the legacy MediaMTX integration.
+It is not a running API or operator yet. Read the
+[implementation plan](integration-mediamtx-plan.md) and the
+[draft API contract](openapi.json).
+
+Use Python 3.14 and uv. Run `make sync`, then `make check` and `make build`.
+Run `uv run --locked prek install` to install the local checks.
+
+For protocol tests, install Kind v0.33.0 and start Podman. Run `make kind-up`.
+The script creates a separate cluster for this checkout. It stores the kubeconfig
+under `.local/kind/` and prints the explicit context. It does not change your
+default kubeconfig. Run `make kind-load ARCHIVE=/path/to/image.tar` to load a
+Podman image archive. Use `imagePullPolicy: Never` in offline test workloads.
+Run `make kind-down` to delete only the cluster owned by this checkout.
+After failed creation, use the same cleanup command before retrying.
+Run cluster commands one at a time.
+See the [Kind rootless requirements](https://kind.sigs.k8s.io/docs/user/rootless/)
+before testing UDP traffic. No application workload is installed by these tasks.
+
+TAK profiles and integration with the sibling TAK repositories are deferred until
+their current work is complete. Do not advertise TAK support yet.
+
+See the [decision record](docs/decisions/0001-foundation.md) and the
+[implementation status](docs/implementation-status.md) for scope and test evidence.

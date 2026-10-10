@@ -1,0 +1,30 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pvarki/config-ci-library/.github/actions/setup-python@1786399bf62c2b691f1e8fb9dcfc7a0be72a2846
+        with:
+          python-version: "3.14"
+          uv-version: "0.12.13"
+      - run: make check
+      - run: uv run --locked prek run --all-files
+      - run: make build
+
+  snyk:
+    # Disabled until the new organization is configured. This is not a passed scan.
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Snyk is disabled."

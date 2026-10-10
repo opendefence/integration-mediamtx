@@ -1,0 +1,2501 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://spec.openapis.org/oas/3.1/dialect/base",
+  "info": {
+    "title": "OpenDefence MediaMTX Integration API",
+    "version": "1.0.0-draft.1",
+    "summary": "Resource API for MediaMTX streams, scoped grants and client profiles.",
+    "description": "Design contract for opendefence/integration-mediamtx. This file describes the proposed replacement API, not the deployed legacy service. Core owns identities and effective permissions. Integration account metadata belongs in UserBinding.status. Namespace-scoped Kubernetes Secrets hold credential material and bounded grant records. No user database is required. Callsigns are mutable display metadata. Public requests use verified client mTLS and Core authorization. Media credentials cannot authenticate to this REST API. Core UI session and workload alternatives remain design gates. Identity headers are internal trust-boundary data, not client authentication parameters. All public responses use Cache-Control: no-store. This draft exports the plan for contract review. It is not generated from a running implementation.",
+    "x-design-date": "2026-10-10",
+    "x-plan": "integration-mediamtx-plan.md"
+  },
+  "servers": [
+    {
+      "url": "/integrations/mediamtx/api/v1",
+      "description": "Public API prefix on the configured HTTPS origin. Plain HTTP is not supported."
+    }
+  ],
+  "security": [
+    {
+      "ClientCertificate": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Discovery",
+      "description": "Capabilities and current Core access."
+    },
+    {
+      "name": "Streams",
+      "description": "Authorized stream metadata. No credential values."
+    },
+    {
+      "name": "Access grants",
+      "description": "Scoped media credentials and their lifecycle."
+    },
+    {
+      "name": "Connection profiles",
+      "description": "Authorized, secret-bearing client configuration delivery."
+    },
+    {
+      "name": "Private MediaMTX adapter",
+      "description": "Upstream callback on a private Service. Exclude it from public ingress.",
+      "x-internal": true
+    }
+  ],
+  "paths": {
+    "/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "tags": [
+          "Discovery"
+        ],
+        "summary": "Get enabled media capabilities",
+        "description": "The response advertises tested protocols, profile formats and limits. It does not contain credentials.",
+        "responses": {
+          "200": {
+            "description": "Capabilities for this deployment.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getCurrentPrincipal",
+        "tags": [
+          "Discovery"
+        ],
+        "summary": "Get current integration access",
+        "description": "Core resolves the authenticated principal. This endpoint does not create a User, binding, path or credential.",
+        "responses": {
+          "200": {
+            "description": "Current identity and binding projection.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/streams": {
+      "get": {
+        "operationId": "listStreams",
+        "tags": [
+          "Streams"
+        ],
+        "summary": "List authorized streams",
+        "description": "List declared destinations and currently observed channels that the caller can access. Use MediaMTX ready state for live status. A failed observation returns 503, not an empty list.",
+        "responses": {
+          "200": {
+            "description": "Authorized stream metadata.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Omit to include both live and offline streams.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "live",
+                "offline"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/streams/{streamId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/StreamId"
+        }
+      ],
+      "get": {
+        "operationId": "getStream",
+        "tags": [
+          "Streams"
+        ],
+        "summary": "Get one authorized stream",
+        "description": "Decode and validate the canonical path. Resolve current ownership and policy. This response contains no credential-bearing URLs.",
+        "responses": {
+          "200": {
+            "description": "Current stream metadata.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stream"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      }
+    },
+    "/access-grants": {
+      "get": {
+        "operationId": "listAccessGrants",
+        "tags": [
+          "Access grants"
+        ],
+        "summary": "List grant metadata",
+        "description": "By default, return only the caller's grants. scope=all requires an explicit management permission. Retained tombstones are included unless filtered. No secret values are returned.",
+        "responses": {
+          "200": {
+            "description": "Grant metadata.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGrantList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GrantState"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mine",
+                "all"
+              ],
+              "default": "mine"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createAccessGrant",
+        "tags": [
+          "Access grants"
+        ],
+        "summary": "Create a scoped media grant",
+        "description": "Authorize the exact stream, action, protocol set and expiry against fresh Core policy. The server assigns the owner. Create the Secret atomically with a name derived from the principal and idempotency-key digest. Store a normalized request digest. A matching retry returns this resource; a different payload returns 409. Recheck current caller access on every retry. Retain the idempotency record for the advertised retry window. A created grant can remain pending until reconciliation completes.",
+        "responses": {
+          "201": {
+            "description": "The grant resource exists. Its state reports reconciliation readiness.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
+              "Idempotency-Replayed": {
+                "$ref": "#/components/headers/IdempotencyReplay"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGrant"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccessGrant"
+              },
+              "example": {
+                "streamId": "s1_bGl2ZS91YXMvMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAx",
+                "actions": [
+                  "read"
+                ],
+                "protocols": [
+                  "rtmps"
+                ],
+                "expiresAt": "2026-10-10T18:00:00Z",
+                "label": "UAS observer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/access-grants/{grantId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GrantId"
+        }
+      ],
+      "get": {
+        "operationId": "getAccessGrant",
+        "tags": [
+          "Access grants"
+        ],
+        "summary": "Get grant metadata",
+        "description": "Return scope, expiry and cleanup state. Revoked or expired resources remain visible during the documented retention period. Grant IDs do not authorize access.",
+        "responses": {
+          "200": {
+            "description": "Secret-free grant metadata.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGrant"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeAccessGrant",
+        "tags": [
+          "Access grants"
+        ],
+        "summary": "Revoke a grant and remove its sessions",
+        "description": "Persist denial before disconnecting current sessions. Return 202 while cleanup is pending or failed. The response body exposes cleanup state; denial remains active. Return 204 after session removal is confirmed. Repeated authorized calls remain safe. A stale If-Match still returns 412. Keep a tombstone until the retry and cleanup retention requirements are met.",
+        "responses": {
+          "202": {
+            "description": "Revocation is durable. Session cleanup is incomplete.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGrant"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "Revocation and session removal are complete. No response body.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ]
+      }
+    },
+    "/access-grants/{grantId}/connection-profile": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/GrantId"
+        }
+      ],
+      "get": {
+        "operationId": "getConnectionProfile",
+        "tags": [
+          "Connection profiles"
+        ],
+        "summary": "Get a connection profile or client file",
+        "description": "Authorize retrieval on every request. Require a ready, active, unexpired grant and fresh Core access. GET never issues, rotates or changes credentials. Expired or revoked grants return 409 with grant-unavailable; pending grants use grant-not-ready. Dependency outages return 503. The profile and protocol must be advertised in capabilities and match the grant's action and scope. XML and playlists are returned as attachments. Application-specific setup profiles return JSON. A UAS Tool publishing profile requires observerGrantId for a separate ready read grant on the same stream. Authorize both grants and cap profile expiry at their earliest deadline. Its observer protocol is RTMPS. Reject invalid combinations with 422. Unsupported Accept media types return 406.",
+        "responses": {
+          "200": {
+            "description": "Requested profile. connection-json, opentak-icu, gopro and uas-tool return JSON. atak-video-xml returns XML. vlc-m3u returns a playlist.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/NoStore"
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Content-Disposition": {
+                "$ref": "#/components/headers/ContentDisposition"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionProfile"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "TAK video-feed XML. Requires profile=atak-video-xml and a read grant with a tested protocol.",
+                  "x-sensitive": true
+                }
+              },
+              "audio/x-mpegurl": {
+                "schema": {
+                  "type": "string",
+                  "description": "UTF-8 VLC playlist. Requires profile=vlc-m3u and a read grant with a tested protocol.",
+                  "x-sensitive": true
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/Unavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "profile",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ProfileId",
+              "default": "connection-json"
+            }
+          },
+          {
+            "name": "protocol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/MediaProtocol"
+            },
+            "description": "Select one protocol authorized by this grant and supported by the requested profile."
+          },
+          {
+            "name": "observerGrantId",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/GrantId"
+            },
+            "description": "Required for a UAS Tool publishing profile. It must permit RTMPS read on the same stream. Reject this parameter for other profiles."
+          }
+        ]
+      }
+    },
+    "/internal/mediamtx/auth": {
+      "servers": [
+        {
+          "url": "https://{serviceHost}",
+          "description": "Private callback Service. Never expose this route through the public API ingress.",
+          "variables": {
+            "serviceHost": {
+              "default": "integration-mediamtx-auth.integration-mediamtx.svc",
+              "description": "Configured internal Service DNS name. Verify the server certificate."
+            }
+          }
+        }
+      ],
+      "x-internal": true,
+      "post": {
+        "operationId": "authorizeMediaMTXRequest",
+        "tags": [
+          "Private MediaMTX adapter"
+        ],
+        "summary": "Evaluate an upstream MediaMTX authorization request",
+        "description": "MediaMTX calls this endpoint before a media action. This route uses a separate private listener. Network policy limits callers and verified TLS protects transport. The upstream client does not authenticate through Core user mTLS. Empty OpenAPI security does not make the route publicly accessible. Allow only explicit grants or narrowly scoped control credentials. Deny stale policy, revoked owners and expired grants. Do not treat an allowed callback as proof of successful connection or certificate activation. This endpoint preserves the upstream contract rather than the public Problem Details format.",
+        "security": [],
+        "x-caller-boundary": {
+          "publicIngress": false,
+          "caller": "MediaMTX workload",
+          "transport": "verified HTTPS",
+          "networkPolicyRequired": true
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaMTXAuthRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "The requested action is allowed. Empty body."
+          },
+          "400": {
+            "description": "Malformed payload. Empty body; fail closed."
+          },
+          "401": {
+            "description": "Credentials are missing. MediaMTX can challenge the client. Empty body."
+          },
+          "403": {
+            "description": "Credentials, scope, owner state, action or protocol are denied. Empty body."
+          },
+          "413": {
+            "description": "The payload exceeds the configured limit. Empty body."
+          },
+          "422": {
+            "description": "Payload validation failed. Empty body; do not echo request values."
+          },
+          "429": {
+            "description": "Callback capacity or request limit exceeded. Empty body; fail closed.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "503": {
+            "description": "Required policy or credential data is unavailable or stale. Empty body; fail closed.",
+            "headers": {
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ClientCertificate": {
+        "type": "mutualTLS",
+        "description": "Traefik verifies the client certificate. Core ForwardAuth checks current credential, account and permission state. Remove untrusted identity headers. Block direct paths that bypass these checks."
+      }
+    },
+    "parameters": {
+      "StreamId": {
+        "name": "streamId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/StreamId"
+        }
+      },
+      "GrantId": {
+        "name": "grantId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/GrantId"
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        },
+        "description": "Maximum items per page. Apply visibility filtering before pagination."
+      },
+      "Cursor": {
+        "name": "cursor",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "description": "Opaque cursor bound to the caller and filters. Invalid or expired cursors return 400."
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^\"[^\"\\r\\n]+\"$"
+        },
+        "description": "Send the strong ETag from GET. Wildcards and weak validators are not accepted."
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._~-]+$"
+        },
+        "description": "Client-generated random retry identifier. Scope it to the authenticated principal and this operation."
+      }
+    },
+    "headers": {
+      "NoStore": {
+        "description": "Required on every public API response, including errors.",
+        "schema": {
+          "type": "string",
+          "const": "no-store"
+        }
+      },
+      "ETag": {
+        "description": "Opaque strong validator for this representation. Preserve client preconditions across retries.",
+        "schema": {
+          "type": "string",
+          "pattern": "^\"[^\"\\r\\n]+\"$"
+        }
+      },
+      "Location": {
+        "description": "Relative URI for the grant resource under this API base path.",
+        "schema": {
+          "type": "string",
+          "format": "uri-reference"
+        }
+      },
+      "RetryAfter": {
+        "description": "Suggested retry delay, in seconds.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "RequestId": {
+        "description": "Safe request correlation identifier.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "ContentDisposition": {
+        "description": "Use a sanitized attachment filename for exported XML or playlist files.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "IdempotencyReplay": {
+        "description": "True when this response resumes a previously accepted create request.",
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid request syntax or cursor.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:invalid-request",
+              "title": "BadRequest",
+              "status": 400,
+              "detail": "Invalid request syntax or cursor.",
+              "code": "invalid-request",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Core authentication is missing or invalid. The TLS edge can reject the request before HTTP.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:authentication-required",
+              "title": "Unauthorized",
+              "status": 401,
+              "detail": "Core authentication is missing or invalid. The TLS edge can reject the request before HTTP.",
+              "code": "authentication-required",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The current principal cannot perform this operation.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:access-denied",
+              "title": "Forbidden",
+              "status": 403,
+              "detail": "The current principal cannot perform this operation.",
+              "code": "access-denied",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The resource does not exist or is not visible to this principal.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:not-found",
+              "title": "NotFound",
+              "status": 404,
+              "detail": "The resource does not exist or is not visible to this principal.",
+              "code": "not-found",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The request conflicts with current state. See the stable problem code.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:conflict",
+              "title": "Conflict",
+              "status": 409,
+              "detail": "The request conflicts with current state. See the stable problem code.",
+              "code": "conflict",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "PreconditionFailed": {
+        "description": "The supplied If-Match value is stale. Refetch before retrying.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:precondition-failed",
+              "title": "PreconditionFailed",
+              "status": 412,
+              "detail": "The supplied If-Match value is stale. Refetch before retrying.",
+              "code": "precondition-failed",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "NotAcceptable": {
+        "description": "The requested representation is not supported.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:profile-not-supported",
+              "title": "NotAcceptable",
+              "status": 406,
+              "detail": "The requested representation is not supported.",
+              "code": "profile-not-supported",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "Send application/json for this request.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:invalid-request",
+              "title": "UnsupportedMediaType",
+              "status": 415,
+              "detail": "Send application/json for this request.",
+              "code": "invalid-request",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "description": "A field or field combination is invalid.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:invalid-request",
+              "title": "Unprocessable",
+              "status": 422,
+              "detail": "A field or field combination is invalid.",
+              "code": "invalid-request",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "PreconditionRequired": {
+        "description": "An If-Match header is required.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:precondition-required",
+              "title": "PreconditionRequired",
+              "status": 428,
+              "detail": "An If-Match header is required.",
+              "code": "precondition-required",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "The request rate or active-grant quota exceeds the configured limit.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:rate-limited",
+              "title": "TooManyRequests",
+              "status": 429,
+              "detail": "The request rate or active-grant quota exceeds the configured limit.",
+              "code": "rate-limited",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "Unavailable": {
+        "description": "Policy, configuration or another required dependency is unavailable or stale.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:dependency-unavailable",
+              "title": "Unavailable",
+              "status": 503,
+              "detail": "Policy, configuration or another required dependency is unavailable or stale.",
+              "code": "dependency-unavailable",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected failure prevented completion.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/NoStore"
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "example": {
+              "type": "urn:opendefence:integration-mediamtx:problem:internal-error",
+              "title": "InternalError",
+              "status": 500,
+              "detail": "An unexpected failure prevented completion.",
+              "code": "internal-error",
+              "requestId": "example-request-1"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "OpaqueId": {
+        "type": "string",
+        "description": "Stable opaque identifier. Do not derive identity from a callsign.",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "StreamId": {
+        "type": "string",
+        "description": "Versioned Base64URL encoding of a canonical media path, without padding. Decode and authorize the path separately.",
+        "pattern": "^s1_[A-Za-z0-9_-]+$",
+        "minLength": 4,
+        "maxLength": 259
+      },
+      "GrantId": {
+        "type": "string",
+        "description": "Opaque grant identifier. Each replacement grant has a new identifier.",
+        "pattern": "^g_[A-Za-z0-9_-]{22}$",
+        "example": "g_AAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "MediaProtocol": {
+        "type": "string",
+        "description": "Public protocol name. Only deployment-enabled and tested protocols are advertised.",
+        "enum": [
+          "rtsps",
+          "rtmps",
+          "srt",
+          "hls",
+          "webrtc"
+        ]
+      },
+      "MediaAction": {
+        "type": "string",
+        "description": "A media action. This value cannot authorize api, metrics or pprof. Archive playback remains disabled until its deployment and client contract is verified.",
+        "enum": [
+          "read",
+          "publish",
+          "playback"
+        ]
+      },
+      "ProfileId": {
+        "type": "string",
+        "description": "Client profile format. A deployment advertises only verified profiles.",
+        "enum": [
+          "connection-json",
+          "atak-video-xml",
+          "vlc-m3u",
+          "opentak-icu",
+          "gopro",
+          "uas-tool"
+        ]
+      },
+      "Subject": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "user",
+              "workload"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/OpaqueId"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ]
+      },
+      "Condition": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Condition name.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "True",
+              "False",
+              "Unknown"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Stable reason code.",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "message": {
+            "type": "string",
+            "description": "Short explanation. No secrets.",
+            "maxLength": 512
+          },
+          "lastTransitionTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "type",
+          "status",
+          "reason",
+          "lastTransitionTime"
+        ]
+      },
+      "ProfileCapability": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/ProfileId"
+          },
+          "mediaType": {
+            "type": "string",
+            "enum": [
+              "application/json",
+              "application/xml",
+              "audio/x-mpegurl"
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAction"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaProtocol"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "requiresObserverGrant": {
+            "type": "boolean",
+            "description": "True for a publishing profile that also delivers an observer configuration."
+          }
+        },
+        "required": [
+          "id",
+          "mediaType",
+          "actions",
+          "protocols",
+          "requiresObserverGrant"
+        ]
+      },
+      "Capabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "apiVersion": {
+            "type": "string",
+            "const": "1"
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaProtocol"
+            },
+            "uniqueItems": true
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAction"
+            },
+            "uniqueItems": true
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileCapability"
+            }
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxActiveGrants": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "maxGrantLifetimeSeconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "idempotencyRetentionSeconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "maxPageSize": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              },
+              "maxMediaPathBytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 192
+              }
+            },
+            "required": [
+              "maxActiveGrants",
+              "maxGrantLifetimeSeconds",
+              "idempotencyRetentionSeconds",
+              "maxPageSize",
+              "maxMediaPathBytes"
+            ]
+          },
+          "sharing": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "requiresExplicitPermission": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "enabled",
+              "requiresExplicitPermission"
+            ]
+          },
+          "authorization": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "policyMaxAgeSeconds": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sessionRemovalTargetSeconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "strictOutageEnforcementVerified": {
+                "type": "boolean",
+                "description": "True only after the selected deployment passes the strict outage tests."
+              }
+            },
+            "required": [
+              "policyMaxAgeSeconds",
+              "sessionRemovalTargetSeconds",
+              "strictOutageEnforcementVerified"
+            ]
+          }
+        },
+        "required": [
+          "apiVersion",
+          "protocols",
+          "actions",
+          "profiles",
+          "limits",
+          "sharing",
+          "authorization"
+        ]
+      },
+      "BindingView": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "ready",
+              "degraded"
+            ]
+          },
+          "accountId": {
+            "$ref": "#/components/schemas/OpaqueId"
+          },
+          "callsign": {
+            "type": "string",
+            "description": "Observed display name. It is not an account key.",
+            "maxLength": 128
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            }
+          }
+        },
+        "required": [
+          "state",
+          "conditions"
+        ]
+      },
+      "PublishingDestination": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "streamId": {
+            "$ref": "#/components/schemas/StreamId"
+          },
+          "tool": {
+            "type": "string",
+            "description": "Configured tool name.",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "mediaPath": {
+            "type": "string",
+            "description": "Canonical destination. This path does not contain a credential.",
+            "minLength": 1,
+            "maxLength": 192
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaProtocol"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "streamId",
+          "tool",
+          "mediaPath",
+          "protocols"
+        ]
+      },
+      "Me": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "subject": {
+            "$ref": "#/components/schemas/Subject"
+          },
+          "callsign": {
+            "type": "string",
+            "description": "Current Core display name. A change does not change stream or grant identifiers.",
+            "maxLength": 128
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "canReadAssignedStreams": {
+                "type": "boolean"
+              },
+              "canPublishOwnStreams": {
+                "type": "boolean"
+              },
+              "canShareStreams": {
+                "type": "boolean"
+              },
+              "canViewOtherGrants": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "canReadAssignedStreams",
+              "canPublishOwnStreams",
+              "canShareStreams",
+              "canViewOtherGrants"
+            ]
+          },
+          "binding": {
+            "$ref": "#/components/schemas/BindingView"
+          },
+          "accessExpiresAt": {
+            "type": "string",
+            "description": "Absolute approval deadline, when the Core profile supplies one. Grant expiry cannot exceed this deadline.",
+            "format": "date-time"
+          },
+          "publishingDestinations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublishingDestination"
+            }
+          }
+        },
+        "required": [
+          "subject",
+          "permissions",
+          "binding",
+          "publishingDestinations"
+        ]
+      },
+      "Stream": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/StreamId"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Subject"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Display label. This value may change with the owner's callsign.",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "callsign": {
+            "type": "string",
+            "description": "Current display metadata.",
+            "maxLength": 128
+          },
+          "tool": {
+            "type": "string",
+            "description": "Configured tool category.",
+            "maxLength": 32
+          },
+          "mediaPath": {
+            "type": "string",
+            "description": "Canonical media path. Validate owner and complete segments; never use a bare prefix match.",
+            "minLength": 1,
+            "maxLength": 192
+          },
+          "state": {
+            "type": "string",
+            "description": "live requires a current MediaMTX ready observation. Missing upstream data is not offline.",
+            "enum": [
+              "live",
+              "offline"
+            ]
+          },
+          "observedAt": {
+            "type": "string",
+            "description": "Time of the current successful MediaMTX observation.",
+            "format": "date-time"
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaProtocol"
+            },
+            "uniqueItems": true
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAction"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "displayName",
+          "mediaPath",
+          "state",
+          "observedAt",
+          "protocols",
+          "allowedActions"
+        ]
+      },
+      "StreamList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Stream"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "Omit this field on the last page.",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CreateAccessGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "streamId": {
+            "$ref": "#/components/schemas/StreamId"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAction"
+            },
+            "minItems": 1,
+            "maxItems": 1,
+            "uniqueItems": true,
+            "description": "The first version grants exactly one action on one exact stream."
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaProtocol"
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "uniqueItems": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "Must be in the future. It cannot exceed the Core approval deadline or the advertised lifetime limit.",
+            "format": "date-time"
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable purpose. Do not include secrets.",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "streamId",
+          "actions",
+          "protocols",
+          "expiresAt"
+        ],
+        "description": "The server chooses the owner and credential. The request cannot set a username, password, owner or administrative permission."
+      },
+      "GrantState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "ready",
+          "revoked",
+          "expired",
+          "failed"
+        ]
+      },
+      "AccessGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/GrantId"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Subject"
+          },
+          "streamId": {
+            "$ref": "#/components/schemas/StreamId"
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaAction"
+            },
+            "minItems": 1,
+            "maxItems": 1,
+            "uniqueItems": true
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaProtocol"
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "uniqueItems": true
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/GrantState"
+          },
+          "revokedAt": {
+            "type": "string",
+            "description": "Present after explicit revocation. Expiry does not require this field.",
+            "format": "date-time"
+          },
+          "cleanupState": {
+            "type": "string",
+            "description": "Tracks removal of existing sessions. Denial remains active if cleanup fails.",
+            "enum": [
+              "not-required",
+              "pending",
+              "complete",
+              "failed"
+            ]
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "streamId",
+          "actions",
+          "protocols",
+          "createdAt",
+          "expiresAt",
+          "state",
+          "cleanupState",
+          "conditions"
+        ],
+        "description": "Secret-free grant metadata. Kubernetes Secret references and credential values are not exposed here.",
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "state": {
+                  "const": "revoked"
+                }
+              },
+              "required": [
+                "state"
+              ]
+            },
+            "then": {
+              "required": [
+                "revokedAt"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "state": {
+                  "enum": [
+                    "revoked",
+                    "expired"
+                  ]
+                }
+              },
+              "required": [
+                "state"
+              ]
+            },
+            "then": {
+              "properties": {
+                "cleanupState": {
+                  "enum": [
+                    "pending",
+                    "complete",
+                    "failed"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AccessGrantList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessGrant"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "Omit this field on the last page.",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "MediaAuthentication": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "basic"
+          },
+          "username": {
+            "type": "string",
+            "description": "Unique media username for this grant generation. It is not the callsign.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "password": {
+            "type": "string",
+            "description": "Secret credential. Never log or cache this value.",
+            "format": "password",
+            "minLength": 1,
+            "maxLength": 256,
+            "x-sensitive": true
+          },
+          "placement": {
+            "type": "string",
+            "description": "How the selected native protocol carries credentials.",
+            "enum": [
+              "http-authorization",
+              "rtsp-userinfo",
+              "rtmp-query",
+              "srt-stream-id"
+            ]
+          }
+        },
+        "required": [
+          "type",
+          "username",
+          "password",
+          "placement"
+        ]
+      },
+      "SrtConfiguration": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "streamId": {
+            "type": "string",
+            "description": "Complete, escaped-as-required Stream ID. This value contains credentials.",
+            "minLength": 1,
+            "maxLength": 512,
+            "x-sensitive": true
+          },
+          "passphrase": {
+            "type": "string",
+            "description": "Path-level encryption passphrase for this action. It is separate from the grant password.",
+            "format": "password",
+            "minLength": 10,
+            "maxLength": 79,
+            "x-sensitive": true
+          }
+        },
+        "required": [
+          "streamId",
+          "passphrase"
+        ]
+      },
+      "MediaConnection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grantId": {
+            "$ref": "#/components/schemas/GrantId"
+          },
+          "action": {
+            "$ref": "#/components/schemas/MediaAction"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/MediaProtocol"
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "Configured endpoint without credentials. It is not inferred from an untrusted Host header.",
+            "format": "uri"
+          },
+          "authentication": {
+            "$ref": "#/components/schemas/MediaAuthentication"
+          },
+          "srt": {
+            "$ref": "#/components/schemas/SrtConfiguration"
+          },
+          "connectionUrl": {
+            "type": "string",
+            "description": "Complete native-client URL. This value can contain secrets. Never supply this field for HLS or WebRTC.",
+            "format": "uri",
+            "x-sensitive": true
+          }
+        },
+        "required": [
+          "grantId",
+          "action",
+          "protocol",
+          "endpoint",
+          "authentication"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "const": "srt"
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "required": [
+                "srt"
+              ]
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "srt"
+                ]
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "hls",
+                    "webrtc"
+                  ]
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "connectionUrl"
+                ]
+              },
+              "properties": {
+                "authentication": {
+                  "properties": {
+                    "placement": {
+                      "const": "http-authorization"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "const": "rtsps"
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authentication": {
+                  "properties": {
+                    "placement": {
+                      "const": "rtsp-userinfo"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "const": "rtmps"
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authentication": {
+                  "properties": {
+                    "placement": {
+                      "const": "rtmp-query"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "const": "srt"
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "properties": {
+                "authentication": {
+                  "properties": {
+                    "placement": {
+                      "const": "srt-stream-id"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "hls",
+                    "webrtc"
+                  ]
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "properties": {
+                "endpoint": {
+                  "pattern": "^https://"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "rtsps"
+                  ]
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "properties": {
+                "endpoint": {
+                  "pattern": "^rtsps://"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "rtmps"
+                  ]
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "properties": {
+                "endpoint": {
+                  "pattern": "^rtmps://"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "protocol": {
+                  "enum": [
+                    "srt"
+                  ]
+                }
+              },
+              "required": [
+                "protocol"
+              ]
+            },
+            "then": {
+              "properties": {
+                "endpoint": {
+                  "pattern": "^srt://"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ConnectionProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "grantId": {
+            "$ref": "#/components/schemas/GrantId"
+          },
+          "streamId": {
+            "$ref": "#/components/schemas/StreamId"
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "connection-json",
+              "opentak-icu",
+              "gopro",
+              "uas-tool"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "Earliest expiry across the delivered grants and the current approval deadline.",
+            "format": "date-time"
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaConnection"
+            },
+            "minItems": 1,
+            "maxItems": 2,
+            "description": "The primary grant comes first. An optional second connection uses the separate observer grant."
+          },
+          "clientSetupUri": {
+            "type": "string",
+            "description": "Optional application-specific setup URI. It can contain both credentials. Do not log, cache or persist it in binding status.",
+            "format": "uri",
+            "x-sensitive": true
+          }
+        },
+        "required": [
+          "grantId",
+          "streamId",
+          "profile",
+          "expiresAt",
+          "connections"
+        ],
+        "description": "Secret-bearing response. Authorize delivery each time. Downloading this representation does not prove successful client installation."
+      },
+      "Problem": {
+        "type": "object",
+        "description": "Problem Details for the public API. Do not include credentials, Secret names or upstream request bodies.",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "code",
+          "requestId"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Stable problem type URI.",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short problem title.",
+            "maxLength": 128
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string",
+            "description": "Short explanation for this request.",
+            "maxLength": 1024
+          },
+          "instance": {
+            "type": "string",
+            "description": "Request instance identifier. It must not contain query credentials.",
+            "format": "uri-reference"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid-request",
+              "authentication-required",
+              "access-denied",
+              "not-found",
+              "conflict",
+              "grant-not-ready",
+              "grant-unavailable",
+              "idempotency-conflict",
+              "invalid-expiry",
+              "invalid-profile-options",
+              "precondition-failed",
+              "precondition-required",
+              "cursor-invalid",
+              "profile-not-supported",
+              "quota-exceeded",
+              "rate-limited",
+              "dependency-unavailable",
+              "internal-error"
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Safe request correlation identifier.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "pointer": {
+                  "type": "string",
+                  "description": "JSON Pointer or parameter name."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Validation error without the rejected secret value.",
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "pointer",
+                "message"
+              ]
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "MediaMTXAuthRequest": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Upstream MediaMTX v1.21.2 HTTP authorization payload. Ignore unknown fields. Unknown actions or protocols are denied. Do not log the body.",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "Media grant username, or an explicitly scoped control/monitoring username.",
+            "maxLength": 256,
+            "default": ""
+          },
+          "password": {
+            "type": "string",
+            "description": "MediaMTX-supplied password.",
+            "format": "password",
+            "maxLength": 4096,
+            "writeOnly": true,
+            "x-sensitive": true,
+            "default": ""
+          },
+          "token": {
+            "type": "string",
+            "description": "May duplicate password in this upstream version. Token-only media access is not enabled by this draft.",
+            "maxLength": 8192,
+            "writeOnly": true,
+            "x-sensitive": true,
+            "default": ""
+          },
+          "ip": {
+            "type": "string",
+            "description": "Client IP as observed by MediaMTX. It is not an identity proof.",
+            "maxLength": 64
+          },
+          "action": {
+            "type": "string",
+            "description": "Known actions: publish, read, playback, api, metrics and pprof. Disable pprof in the deployment.",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "path": {
+            "type": "string",
+            "description": "Canonical stream path, or an empty string for an administrative action.",
+            "maxLength": 512,
+            "default": ""
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Upstream names include rtsp, rtmp, hls, webrtc, srt and moq. Deny protocols that the deployment does not support.",
+            "maxLength": 32,
+            "default": ""
+          },
+          "id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Upstream session or connection ID. It can be absent or null. Callback success is not connection proof."
+          },
+          "query": {
+            "type": "string",
+            "description": "Raw query string. It can contain credentials. Never log this value.",
+            "maxLength": 16384,
+            "writeOnly": true,
+            "x-sensitive": true,
+            "default": ""
+          },
+          "userAgent": {
+            "type": "string",
+            "description": "Untrusted client metadata.",
+            "maxLength": 1024,
+            "default": ""
+          }
+        }
+      }
+    }
+  },
+  "x-source-baselines": {
+    "legacyIntegration": "pvarki/python-mediamtx-rmmtxauthz@1e2d8fea4c80c4391f27d25ed07d57205e39bd9d",
+    "mediaMTX": "bluenviron/mediamtx@914e39535ece709919ac325aaeed98d394ed9093 (v1.21.2)"
+  },
+  "x-design-gates": [
+    {
+      "id": "tak-support",
+      "decision": "TAK profiles and cross-repository integration are deferred until the related sibling repository tasks are complete. Do not advertise TAK capabilities before then."
+    },
+    {
+      "id": "core-binding",
+      "decision": "Agree UserBinding field ownership, immutable ID encoding, effective-policy projection and restore behavior."
+    },
+    {
+      "id": "core-authentication",
+      "decision": "Agree UI session and workload authentication alternatives. This draft enables only the verified mTLS baseline."
+    },
+    {
+      "id": "policy-freshness",
+      "decision": "Agree how Core proves policy freshness and the absolute approval deadline."
+    },
+    {
+      "id": "http-routing",
+      "decision": "Verify request-prefix removal and Location rewriting with the selected Traefik and MediaMTX versions."
+    },
+    {
+      "id": "session-revocation",
+      "decision": "Verify active-session removal and fail-closed behavior during operator or control API outages."
+    },
+    {
+      "id": "client-profiles",
+      "decision": "Advertise a client profile only after real import, update and playback tests pass."
+    }
+  ],
+  "x-profile-constraints": {
+    "connection-json": "Any enabled media action/protocol combination that the grant and runtime support.",
+    "atak-video-xml": "Read only. Start with RTMPS; expand only after client tests.",
+    "vlc-m3u": "Read only. Start with HLS and SRT; expand only after client tests.",
+    "opentak-icu": "Publish only. Select a protocol proven with the supported ICU version.",
+    "gopro": "Publish only over RTMPS.",
+    "uas-tool": "Publish over SRT with a separate same-stream RTMPS read grant in observerGrantId."
+  },
+  "x-storage-contract": {
+    "authoritativeIdentity": "Core User resources",
+    "integrationMetadata": "Integration-owned UserBinding.status",
+    "credentials": "Namespace-scoped Secrets; never in binding status",
+    "grantWrites": "API creates and revokes grant Secrets with atomic create and resource-version preconditions.",
+    "statusWrites": "Operator is the sole integration status writer.",
+    "currentSessions": "Read from MediaMTX; bounded in-memory observations only."
+  }
+}

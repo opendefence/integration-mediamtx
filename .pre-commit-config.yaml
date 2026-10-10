@@ -1,0 +1,25 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint
+        entry: uv run --locked ruff check
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: Ruff format
+        entry: uv run --locked ruff format --check
+        language: system
+        types_or: [python, pyi]
+      - id: pyrefly
+        name: Strict type check
+        entry: uv run --locked pyrefly check
+        language: system
+        pass_filenames: false
+        files: \.(py|pyi|toml)$
+      - id: uv-lock
+        name: Check dependency lock
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+        files: ^(pyproject\.toml|uv\.lock)$
