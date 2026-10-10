@@ -1,0 +1,34 @@
+{
+  "atomicCreate": true,
+  "cloudcoilVersion": "0.8.0",
+  "concurrentCreators": 8,
+  "coreCrdSourceSha256": "105bede6c1dd9f77c9effb6d8525d5882822a6ca67c75f14f2f59f64f106a747",
+  "crdCleanup": true,
+  "kindContext": "kind-mediamtx-5695ccafbf64",
+  "namespaceCleanup": true,
+  "operatorBindingRepair": true,
+  "operatorCleanShutdown": true,
+  "operatorOrphanReadinessCleared": true,
+  "operatorPendingStatus": true,
+  "operatorStartupReplay": true,
+  "operatorUnrelatedBindingPreserved": true,
+  "operatorUserRecreation": true,
+  "ownedClusterCleanup": true,
+  "packageSourceSha256": {
+    "bindings.py": "3bccc29e411c5a6d96d67d3ad76a693f8f7d47fc936c23e357d328b2510b842d",
+    "identity.py": "e0335715c32c5f14f973e9301ce2a18cd282ba24136923eafa01be50f378e8a2",
+    "operator.py": "f99ef6e61468dc334e2b1d5c64bfe875f29295de270316c05bec6d8b9ec5b6f8"
+  },
+  "pythonVersion": "3.14.7",
+  "recreatedUserSeparated": true,
+  "replacedBindingDenied": true,
+  "siblingClustersPreserved": [
+    "opendefence-dev",
+    "tak-server-t0"
+  ],
+  "staleWriteDenied": true,
+  "statusGeneration": 1,
+  "statusNoOp": true,
+  "unknownStatusFieldsPruned": true,
+  "userCleanup": true
+}

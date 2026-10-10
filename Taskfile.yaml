@@ -42,6 +42,11 @@ tasks:
     cmds:
       - uv build --no-sources
 
+  operator:run:
+    desc: Run the binding operator against the selected Kubernetes context
+    cmds:
+      - uv run --locked mediamtx-operator run
+
   base:up:
     desc: Create the base development cluster and install a base package
     preconditions:

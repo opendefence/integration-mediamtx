@@ -88,9 +88,10 @@ def _namespace(client: AsyncAPIClient[UserBinding]) -> str:
     return namespace
 
 
-def _check_binding(binding: UserBinding, user: CoreUser, namespace: str) -> None:
-    name, subject_id = _user_identity(user)
+def _binding_identity(binding: UserBinding, namespace: str) -> UUID:
     meta = binding.metadata
+    subject = (meta.annotations or {}).get(USER_UUID_ANNOTATION, "") if meta else ""
+    subject_id = parse_user_id(subject)
     if (
         not meta
         or meta.name != f"mediamtx-{subject_id.hex}"
@@ -100,9 +101,8 @@ def _check_binding(binding: UserBinding, user: CoreUser, namespace: str) -> None
         or meta.generation is None
         or meta.generation < 1
         or meta.deletion_timestamp
-        or (meta.annotations or {}).get(USER_UUID_ANNOTATION) != str(subject_id)
+        or subject != str(subject_id)
         or (meta.labels or {}).get("app.kubernetes.io/managed-by") != MANAGED_BY
-        or binding.spec.user_ref.name != name
     ):
         raise ValueError("UserBinding identity or ownership mismatch")
     if str(parse_user_id(meta.uid)) != meta.uid:
@@ -112,6 +112,13 @@ def _check_binding(binding: UserBinding, user: CoreUser, namespace: str) -> None
         condition.last_transition_time.utcoffset() is None for condition in conditions
     ):
         raise ValueError("Invalid UserBinding conditions")
+    return subject_id
+
+
+def _check_binding(binding: UserBinding, user: CoreUser, namespace: str) -> None:
+    name, subject_id = _user_identity(user)
+    if _binding_identity(binding, namespace) != subject_id or binding.spec.user_ref.name != name:
+        raise ValueError("UserBinding identity or ownership mismatch")
 
 
 async def ensure_binding(user: CoreUser, client: AsyncAPIClient[UserBinding]) -> UserBinding:
@@ -145,6 +152,20 @@ async def set_binding_synced(
 ) -> UserBinding:
     """Report completed provisioning, with UID/version guards; conflicts propagate."""
     _check_binding(binding, user, _namespace(client))
+    return await _set_synced(binding, client, synced=synced, now=now)
+
+
+async def set_binding_pending(
+    binding: UserBinding, client: AsyncAPIClient[UserBinding], *, now: datetime
+) -> UserBinding:
+    """Clear readiness for owned bindings, including missing or replaced Users."""
+    _binding_identity(binding, _namespace(client))
+    return await _set_synced(binding, client, synced=False, now=now)
+
+
+async def _set_synced(
+    binding: UserBinding, client: AsyncAPIClient[UserBinding], *, synced: bool, now: datetime
+) -> UserBinding:
     if type(synced) is not bool or now.utcoffset() is None:
         raise ValueError("Invalid provisioning observation")
     conditions: list[PlatformCondition] = binding.status.conditions if binding.status else []

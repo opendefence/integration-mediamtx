@@ -1,7 +1,8 @@
 # M2 Core identity and bindings
 
 Date: 2026-10-10. This slice consumes the user's supplied CRD and authentication
-boundary. It implements adapters, not a running public API or operator process.
+boundary. This checkpoint implemented adapters; the subsequent
+[binding operator](m2-operator.md) runs their observations. The public API remains pending.
 
 Core owns user mTLS authentication and any ForwardAuth configuration. The
 integration consumes one injected header through `user_id_from_headers` in
@@ -35,6 +36,10 @@ retain their ownership identity.
   other conditions and changes the transition timestamp only when the condition
   status changes. An unchanged observation makes no request. Conflicts propagate
   so the caller must read and reconcile again.
+- The operator adds `set_binding_pending`, which only clears readiness on owned
+  bindings. It can invalidate an orphaned binding without requiring a current
+  User. Positive readiness still requires a matching current User and a caller's
+  completed provisioning result; the running operator does not report it.
 
 The User view keeps spec and status opaque. It reads identity from metadata and
 does not resolve roles or groups. Callers must fetch the current User; a stored
@@ -91,5 +96,6 @@ The CRD input hash is
 No effective-policy endpoint or revision/expiry projection is defined in these
 CRDs or the inspected Core scaffold. Production media authorization still needs
 that contract. The existing pure policy function remains fail-closed on absent
-or stale policy. Ingress, production RBAC, grant persistence, the operator
-process and public API are not validated by this probe. TAK remains deferred.
+or stale policy. Ingress, production RBAC, grant persistence and the public API
+are not validated by this adapter probe. The separate operator probe uses
+`--operator`. TAK remains deferred.

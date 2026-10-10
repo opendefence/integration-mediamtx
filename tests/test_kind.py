@@ -20,6 +20,7 @@ def checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         'printf "CALL\\n" >> "$KIND_TEST_LOG"\n'
         'printf "%s\\n" "$@" >> "$KIND_TEST_LOG"\n'
         'test "$KIND_EXPERIMENTAL_PROVIDER" = podman\n'
+        'test -z "${KIND_EXPERIMENTAL_DOCKER_NETWORK:-}${KIND_EXPERIMENTAL_PODMAN_NETWORK:-}"\n'
         'if [[ $1 == get ]]; then printf "%s\\n" "${KIND_TEST_CLUSTERS:-}"; fi\n'
         'if [[ $1 == "${KIND_TEST_FAIL:-}" ]]; then exit 1; fi\n'
     )
@@ -74,6 +75,13 @@ def test_owned_cluster_lifecycle(checkout: Path) -> None:
         str(state / "kubeconfig"),
     ]
     assert not state.exists()
+
+
+def test_inherited_base_network_does_not_reach_isolated_kind(checkout: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KIND_EXPERIMENTAL_DOCKER_NETWORK", "kind-opendefence-dev")
+    monkeypatch.setenv("KIND_EXPERIMENTAL_PODMAN_NETWORK", "kind-opendefence-dev")
+    assert run_kind(checkout, "up").returncode == 0
+    assert run_kind(checkout, "down").returncode == 0
 
 
 @pytest.mark.parametrize("operation", ["down", "load"])

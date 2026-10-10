@@ -6,6 +6,8 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 cluster_name="mediamtx-$(printf '%s' "$repo_root" | shasum -a 256 | cut -c 1-12)"
 state_dir="$repo_root/.local/kind"
 export KIND_EXPERIMENTAL_PROVIDER=podman
+# Remote base includes must not select the isolated probe cluster's network.
+unset KIND_EXPERIMENTAL_DOCKER_NETWORK KIND_EXPERIMENTAL_PODMAN_NETWORK
 
 # shortcut: lifecycle commands run serially; add a lock if automated callers overlap.
 case "${1:-}" in

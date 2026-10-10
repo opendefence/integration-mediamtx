@@ -1,7 +1,8 @@
 # OpenDefence MediaMTX integration
 
 This repository starts the replacement for the legacy MediaMTX integration.
-It is not a running API or operator yet. The
+It includes policy adapters and a binding observation operator. The public API
+and MediaMTX provisioning remain pending. The
 [original implementation plan](docs/integration-mediamtx-plan.md) and
 [original API draft](docs/openapi.json) are design references. See the
 [implementation status](docs/implementation-status.md) for current work and evidence.
@@ -71,11 +72,13 @@ and [reproducible spike](spikes/m1/README.md) record the first integration check
 and the remaining Core and routing gates.
 The [M2 policy implementation](docs/m2-policy.md) adds canonical stream paths and
 scoped admission checks with explicit fresh Core policy inputs. The public API
-and operator remain pending their shared contracts.
+and MediaMTX provisioning remain pending their shared contracts.
 Core owns user mTLS authentication. The integration's header parser consumes
 `X-OpenDefence-User-UUID` by default, with a configurable name. See
 [Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate
 header handling and the supplied UserBinding schema.
 The [M2 binding adapter](docs/m2-bindings.md) implements atomic binding creation
 and guarded status writes, with an explicit live CRD probe. Core effective media
-policy and the production API/operator processes remain separate work.
+policy and the public API remain separate work. The [M2 binding operator](docs/m2-operator.md)
+runs these observations with `task operator:run`. Provisioning stays incomplete
+until its Core policy and MediaMTX configuration contracts are implemented.
