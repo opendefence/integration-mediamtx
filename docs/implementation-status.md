@@ -4,12 +4,13 @@ Date: 2026-10-10. Gate: M2 policy, identity and binding adapters implemented and
 Production API/operator authorization needs Core's effective-policy contract.
 M3 has not started.
 
-Reviewed implementation HEAD: `17a8da16b14155608429af55c752b94ca4b0e2f4`.
+Reviewed implementation HEAD: `7f2b21a57e10948430a547374836c0586924a192`.
 M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
 The subsequent commits are `f69561c` (Core UUID header) and `a39005f` (binding adapter).
 The user expanded the checks in `47f892e`; `4a1d8b4` fixes the resulting failures.
 The package rename is in `5200799`.
 The Task migration and original-document relocation are in `17a8da1`.
+Pinned remote base tasks are in `7f2b21a`.
 The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
 Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit ID.
@@ -173,11 +174,11 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   pinned that revision. Task listing, all 176 tests, both package builds and all
   applicable prek hooks passed. The source archive includes the relocated docs,
   Taskfile and mise tool pin. Earlier Make command results are historical evidence.
-- Base development tasks delegate to a checkout at `../base`, with a `BASE_DIR`
-  override and base variables forwarded after `--`. Read the upstream workflow at
+- The initial base development tasks delegated to a checkout at `../base`, with
+  a `BASE_DIR` override and base variables forwarded after `--`. Read the upstream workflow at
   [`b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6`](https://github.com/opendefence/base/tree/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles).
-  The sibling checkout is older, at `604587f4da6f1e894b68ec6495c45b2d16510cbd`;
-  it needs updating to obtain the current base operator deployment tasks.
+  At that checkpoint, the sibling checkout was at
+  `604587f4da6f1e894b68ec6495c45b2d16510cbd`.
 - Disposable Task fixtures verified delegation, working directories, forwarded
   variables, quoted archive paths and missing-argument rejection. Task listing
   works without a base checkout. No real base lifecycle command was run, and
@@ -185,6 +186,28 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Ponytail review before the Task migration: ship. Checked callers, document
   links, archived evidence, command ordering, task quoting, CI pins and package
   contents. Hosted CI and live cluster/protocol checks were not repeated.
+- Read the updated sibling base at `b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6`,
+  including its instructions and remote-safe registry, cluster and package tasks.
+  Replaced checkout delegation with HTTPS includes at that Git revision and
+  pinned each reviewed file's SHA-256. Task 3.54.0 is pinned in mise and CI;
+  remote includes are enabled without experimental configuration. The official
+  [Task documentation](https://taskfile.dev/docs/remote-taskfiles) and
+  [changelog](https://taskfile.dev/docs/changelog) were read for this change.
+- `base:up` retains sequential registry and cluster setup, then installs an
+  explicit `BASE_VERSION` or `BASE_PACKAGE`. Its input precondition precedes
+  registry writes. CLI overrides now use native `NAME=value` arguments.
+  Package operations retain upstream kube-context guards. `base:down` keeps
+  registry data. Unpublished source builds remain checkout-only in `../base`.
+- Root Task listing, offline cached listing and individual downloaded include
+  listings passed. `task check` passed all 176 tests, Ruff and strict types;
+  `task build` produced the source distribution and wheel. All applicable prek
+  hooks passed. The three public Taskfile checksums have narrow inline secret
+  scanner annotations; the audited secret baseline was not expanded.
+- Ponytail review before the remote Task commit: ship. Checked upstream command
+  ordering, package inputs, context and ownership guards, task namespaces, CLI
+  overrides, CI/tool version agreement and cache handling. Cluster lifecycle
+  commands and hosted CI were not run. No package publication is claimed.
+  The sibling base checkout and isolated probe lifecycle tasks were not changed.
 
 ## Runtime record
 
@@ -192,7 +215,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Python: 3.14.7. PyCharm configured `.venv/bin/python`; package manager: uv.
 - uv: 0.12.8 locally; CI configuration: 0.12.13.
 - Ruff: 0.17.0. Pyrefly: 1.3.2. Pytest: 9.1.1. prek: 0.5.5.
-- Task: 3.51.1 from mise locally; CI uses the pinned official setup action.
+- Task: 3.54.0 from mise locally; CI uses the pinned official setup action.
 - Cloudcoil: registry version 0.8.0 with Kubernetes, operator and test extras.
   The historical live binding probe used Git package version 0.5.0.dev0 at
   `e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8` (upstream tag 0.8.0).
