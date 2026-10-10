@@ -94,6 +94,20 @@ username after denial is persisted; it is not connected to a public API yet.
 image archive. Base, Core and Core's shared CRDs must be installed first. Create
 a dedicated namespace before deploying; this package leaves namespace lifecycle
 with the cluster owner so removing it cannot delete unrelated objects.
+The package also installs ingress `NetworkPolicy` rules. They select the operator
+with no allowed Pod ingress and allow Traefik Pods in `traefik-system` to reach
+MediaMTX's HLS, WebRTC signaling, RTSPS, RTMPS, SRT and WebRTC ICE ports. The
+operator Pod is allowed to reach MediaMTX's private control API on port 9997.
+Other NetworkPolicies can add permissions. Future MediaMTX Pods must use
+the `app.kubernetes.io/name: mediamtx` label and the pinned
+[MediaMTX 1.21.2 ports](https://github.com/bluenviron/mediamtx/blob/v1.21.2/mediamtx.yml)
+for these rules to apply. RTSPS and RTMPS need strict encryption, and RTSPS
+uses TCP transport in this policy. These
+policies create no public listeners. The current base Traefik chart exposes only
+HTTP/HTTPS, so native TCP/UDP entrypoints, media Services and the authenticated
+MediaMTX workload remain deployment work. NetworkPolicy enforcement must be
+verified with the cluster's network plugin before relying on the rules.
+Plain RTSP/RTMP and MoQ remain outside the approved integration protocol set.
 
 Deployment settings use Zarf package values, following Core's overlay names:
 `values/values.yaml` is the production default (`integration-mediamtx`) and

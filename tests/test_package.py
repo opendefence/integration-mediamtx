@@ -32,3 +32,35 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
         assert container["env"] == [
             {"name": "CLOUDCOIL_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}
         ]
+
+
+def test_media_network_policy_keeps_control_private_and_matches_protocol_ports() -> None:
+    package = yaml.safe_load((ROOT / "zarf.yaml").read_text())
+    component = next(item for item in package["components"] if item["name"] == "media-networking")
+    assert component["required"] is True
+    template = (ROOT / component["manifests"][0]["files"][0]).read_text()
+    for values_file in ("values/values.yaml", "values/local-dev.yaml"):
+        namespace = yaml.safe_load((ROOT / values_file).read_text())["namespace"]
+        policies = list(yaml.safe_load_all(template.replace(NAMESPACE_TEMPLATE, namespace)))
+        assert {policy["metadata"]["namespace"] for policy in policies} == {namespace}
+        operator, media = policies
+        assert operator["spec"]["podSelector"]["matchLabels"] == {"app.kubernetes.io/name": "mediamtx-operator"}
+        assert operator["spec"]["ingress"] == []
+        assert media["spec"]["podSelector"]["matchLabels"] == {"app.kubernetes.io/name": "mediamtx"}
+        public, control = media["spec"]["ingress"]
+        assert public["from"] == [
+            {
+                "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "traefik-system"}},
+                "podSelector": {"matchLabels": {"app.kubernetes.io/name": "traefik"}},
+            }
+        ]
+        assert {(port["protocol"], port["port"]) for port in public["ports"]} == {
+            ("TCP", 8888),
+            ("TCP", 8889),
+            ("TCP", 8322),
+            ("TCP", 1936),
+            ("UDP", 8189),
+            ("UDP", 8890),
+        }
+        assert control["from"] == [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "mediamtx-operator"}}}]
+        assert control["ports"] == [{"protocol": "TCP", "port": 9997}]

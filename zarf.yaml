@@ -19,3 +19,10 @@ components:
         template: true
         files:
           - manifests/operator/operator.yaml.tmpl
+  - name: media-networking
+    required: true
+    manifests:
+      - name: media-networking
+        template: true
+        files:
+          - manifests/network/media-ingress.yaml.tmpl

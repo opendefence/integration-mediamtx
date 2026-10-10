@@ -4,6 +4,20 @@ Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator t
 MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
+## Media ingress policy checkpoint
+
+Date: 2026-10-11. The Zarf package now includes namespaced ingress
+`NetworkPolicy` rules in both production and local-dev overlays. They select
+future MediaMTX Pods for HLS, WebRTC signaling and ICE, RTSPS, RTMPS and SRT
+ports from Traefik, and allow the operator to reach the private control port.
+The operator policy has no ingress allow rules. The package still has no
+MediaMTX Service or workload; base has no native streaming entrypoints.
+Live policy enforcement and external client reachability have not been verified.
+Zarf lint and both overlay renders passed. The ARM64 package archive was
+rebuilt and inspected. Kubernetes accepted both policies in a server-side dry
+run. `task check` passed Ruff, strict Pyrefly and 216 tests; all applicable
+pre-commit hooks passed.
+
 ## M2 session-removal checkpoint
 
 Date: 2026-10-11. Added a MediaMTX 1.21.2 control adapter that scans all pages
