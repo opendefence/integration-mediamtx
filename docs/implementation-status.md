@@ -1,10 +1,10 @@
 # Implementation status
 
-Date: 2026-10-10. Gate: M2 policy, identity, bindings and the binding operator tested.
+Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator tested.
 MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
-Reviewed implementation HEAD: `a19793cf92abb0f40a627db84126cd5fae4c7c13`.
+Reviewed implementation HEAD: `faf76f5c2bd9c8c0e60bc1df0da17c4f3dcf7000`.
 M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
 The subsequent commits are `f69561c` (Core UUID header) and `a39005f` (binding adapter).
 The user expanded the checks in `47f892e`; `4a1d8b4` fixes the resulting failures.
@@ -12,6 +12,7 @@ The package rename is in `5200799`.
 The Task migration and original-document relocation are in `17a8da1`.
 Pinned remote base tasks are in `7f2b21a`.
 The binding operator and isolated probe network fix are in `a19793c`.
+The shared Core model dependency is in `faf76f5`.
 The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
 Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit ID.
@@ -80,6 +81,15 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   namespace RBAC and internal controller diagnostics. Shared Core CRDs are not
   installed by the application. Media readiness, credentials and finalizers remain
   pending. Rechecked Core HEAD: still `af0375a41aad095ce464ba588544930d0a486793`.
+- Replaced local Core CRD classes with `lib-opendefence-core` 0.2.1+261010
+  `User`, `UserBinding` and their spec, status and condition models. The uv source
+  uses Nexus pypilocal explicitly. Core's typed User model requires lowercase
+  callsigns; fixtures now use names that match that contract. Ownership and
+  UID/resource-version status guards remain in the integration adapter.
+- Cloudcoil recognizes the shared UserBinding class as a CRD source. The operator
+  omits that Core-owned CRD from generated manifests and installation while
+  keeping its namespace RBAC and runtime watch. The original local schema classes
+  and four type-check suppressions were removed.
 
 ## Evidence
 
@@ -247,6 +257,22 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   restart and conflict handling, mapped watches, generated RBAC, console packaging,
   transport ownership, fixture cleanup and existing adapter callers. No unresolved
   findings in this scope. MediaMTX provisioning remains unimplemented and gated.
+- Shared-model migration: `task check` passed with 200 tests, Ruff and strict
+  Pyrefly (zero errors). `task build` built both distributions. Offline CLI
+  manifest generation passed without a kubeconfig and emitted no Core CRD.
+  All applicable pre-commit hooks passed.
+- The owned Kind probe passed the original binding and running-operator assertions
+  against Cloudcoil 0.8.0, `lib-opendefence-core` 0.2.1+261010 and the current
+  sibling Core CRDs at `6fd602383616947b8e29e4ee12be61fab3d2443c`
+  (file SHA-256 `fb2d59fa58e562a1c20c46cc590458e15d249e1f94b777a14b91eecc15c5b79a`).
+  Fixture User, namespace and installed CRDs were removed; the owned cluster
+  and kubeconfig were removed. Both sibling clusters remained running. The
+  earlier JSON result records remain historical and were not rewritten.
+- Ponytail review before the shared-model commit: ship. Checked the model import
+  identity, lower-case Core fixture contract, timestamp serialization, status
+  guards, offline manifests, registry lock and cleanup. No unresolved findings
+  within this migration. Production RBAC enforcement and image deployment remain
+  separate gates.
 
 ## Runtime record
 
@@ -256,6 +282,9 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Ruff: 0.17.0. Pyrefly: 1.3.2. Pytest: 9.1.1. prek: 0.5.5.
 - Task: 3.54.0 from mise locally; CI uses the pinned official setup action.
 - Cloudcoil: registry version 0.8.0 with Kubernetes, operator and test extras.
+  Core models: `lib-opendefence-core` 0.2.1+261010 from the explicit Nexus
+  pypilocal index. Its wheel SHA-256 is
+  `ec6eaec3dbd9d5166922beffa24b76d592ce68d538051b8cc9c4602f4c249bdc`.
   The historical live binding probe used Git package version 0.5.0.dev0 at
   `e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8` (upstream tag 0.8.0).
   HTTPX: 0.28.1. Pydantic: 2.14.0; pydantic-core: 2.50.0. PyYAML: 6.0.3;
@@ -322,7 +351,8 @@ inheritance algorithm or user database.
 Binding ownership/schema and the integration's injected-header responsibility
 are resolved by the user's M2 clarification. Core policy freshness, effective
 permissions and revision, identity restore and approval deadlines remain open.
-The inspected scaffold and supplied CRDs do not define that projection. A source
+The previously inspected scaffold and supplied CRDs do not define that projection;
+the newly installed model library does not add it. A source
 was requested asynchronously; no fallback authority is assumed. Core owns
 certificate activation; media sessions are not activation evidence. Validate
 header stripping and trusted-only ingress in deployment; do not build ForwardAuth here.
