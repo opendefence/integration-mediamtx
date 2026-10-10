@@ -135,35 +135,28 @@ Normal users currently read any stream. Carry this forward only through an expli
 | State | Owner and location |
 | --- | --- |
 | Identity, callsign, approval, roles and groups | Core User and shared policy resources. |
-| Integration assignment and desired access | Core-owned binding specification or agreed effective-policy projection. |
-| Account mapping and reconciliation result | Integration-owned `UserBinding.status`. |
+| Integration assignment and desired access | Core effective-policy projection; binding existence does not grant access. |
+| Provisioning observation | Integration creates `UserBinding.spec.userRef` and owns its status. |
 | Media grant, password, expiry and revocation marker | Integration namespace Secret, using one versioned schema. |
 | SRT read/publish passphrases | Integration namespace Secrets, keyed by canonical stream path. |
 | Non-secret workload settings | ConfigMaps and deployment manifests. |
 | Current streams and sessions | Read from MediaMTX. Keep only bounded in-memory snapshots. |
 | Audit history | Structured platform logs. Do not grow binding status into an event log. |
 
-Binding status should contain the account ID, observed callsign, policy revision, conditions and bounded credential references. Include expiry and generation metadata where useful. Do not store complete Core user records, session lists or per-request counters there.
+The supplied `../opendefence_core_crds.yaml` defines `platform.opendefence.fi/v1alpha1`. Integrations create one namespaced UserBinding per User. Core watches these observations and does not admit or reconcile them. The binding spec contains only `userRef.name`; it is not a Core assignment record. Status permits only conditions and observed generation. Read identity and callsign from the referenced User. Keep policy and credential metadata in bounded integration Secrets. Extra status properties would be pruned by Kubernetes.
 
-Conceptual status fields, subject to the shared Core schema:
+Use the shared status shape:
 
 ```yaml
 status:
   observedGeneration: 7
-  accountId: "<immutable Core User ID>"
-  callsign: "NORTH-1"
-  observedPolicyRevision: "<opaque Core revision>"
-  credentialRefs:
-    - id: "<grant ID>"
-      secretRef:
-        namespace: integration-mediamtx
-        name: "<credential Secret>"
-      generation: 2
-      expiresAt: "<RFC 3339 timestamp>"
   conditions:
-    - type: Ready
+    - type: Synced
       status: "True"
+      observedGeneration: 7
       reason: Reconciled
+      message: Provisioning is complete.
+      lastTransitionTime: "2026-10-10T12:00:00Z"
 ```
 
 The operator is the only writer of integration status. The API creates or revokes grant Secrets. It does not use binding status as a command queue. The operator reads those records and reports the observed result. Write Secret changes with resource-version preconditions.
@@ -231,7 +224,7 @@ Use a private endpoint such as `POST /internal/mediamtx/auth`. This is an upstre
 
 The callback request contains media credentials, not proof of the calling workload. Restrict its Service and ingress with network policy. Protect credentials in transit with verified TLS. Validate certificate trust or a managed fingerprint against the selected image. Do not assume the callback supports client certificates or custom authentication headers.
 
-The old `X-ClientCert-DN` trust model must not survive. Public API identity comes from the agreed Traefik/Core ForwardAuth contract. Strip client-supplied identity headers. Block direct or alternate paths that bypass this contract.
+Core owns user mTLS authentication and any ForwardAuth configuration. This integration only consumes the injected user UUID header. Use `X-OpenDefence-User-UUID` as the configurable default. Require one canonical UUID text or compact Base64URL value; reject duplicate and joined values. Core's edge must strip client-supplied identity headers and inject the verified value. Restrict the integration listener to that trusted route. The integration does not implement ForwardAuth or parse client certificates.
 
 ### Revoke current sessions as well as future access
 
@@ -457,7 +450,7 @@ Commit examples: `feat(auth): enforce grant scope`, `fix(paths): match owner seg
 
 | Decision | Recommended starting point |
 | --- | --- |
-| Core UserBinding schema and writer contract | Integration metadata in status; one integration status writer; Core owns desired assignments. |
+| Core UserBinding schema and writer contract | Supplied CRD: integration creates userRef bindings and writes Synced status; Core observes. Policy assignment remains a separate Core input. |
 | Effective-policy freshness | Versioned Core projection with an expiry, or a bounded fresh authorization read. Never duplicate role inheritance. |
 | Normal read and sharing scope | Explicit media-read permission; separate permission for bearer sharing. |
 | Credential expiry and quotas | Bound every grant by the approval deadline. Set small deployment quotas and garbage-collection limits. |

@@ -1,7 +1,7 @@
 # M1 contracts and dependency gates
 
 Date: 2026-10-10. These are integration design decisions and requirements for
-Core review. They are not an accepted Core schema or a running API. The
+Core review, updated with the user's M2 clarification. They are not a running API. The
 [protocol findings](m1-findings.md) distinguish live evidence from design.
 
 ## Core evidence
@@ -9,8 +9,8 @@ Core review. They are not an accepted Core schema or a running API. The
 The working `rasenmaeher-core-architecture-handoff.md` was found in the local
 Downloads directory. Its date is 2026-10-10; its SHA-256 is
 `33a41720b2255535570a1cc782cd8ca29b13ab97cccb1da580c19926487992be`.
-It leaves UserBinding fields and writers, the Integration Manifest, policy
-freshness, trusted identity headers and identity recovery open. The accompanying
+It leaves the Integration Manifest, policy freshness and identity recovery open.
+The M2 clarification below supplies binding ownership and the identity-header boundary. The accompanying
 API handoff is `3.0.0-draft.6`; it does not supply a versioned media-policy feed.
 
 The local Core operator prototype was read at
@@ -63,12 +63,37 @@ The production adapter must settle clock tolerance and freshness with Core.
 Keep the plan's 15-second freshness and 30-second removal targets as unverified
 acceptance targets.
 
-The integration operator is the proposed sole integration-status writer. The
-API writes grant intent to Secrets. Core owns desired assignment. Readiness
+The integration operator is the sole integration-status writer. The API writes
+grant intent to Secrets. Core policy supplies access and assignment. Readiness
 must match the binding generation, policy revision and current MediaMTX instance
-and configuration. Old `Synced=True` is insufficient. Public identity must come
-from the agreed ForwardAuth boundary, including header stripping and prevention
-of alternate ingress. Do not invent header names or enable a public route yet.
+and configuration. Old `Synced=True` is insufficient.
+
+The user supplied `../opendefence_core_crds.yaml` during M2, SHA-256
+`105bede6c1dd9f77c9effb6d8525d5882822a6ca67c75f14f2f59f64f106a747`.
+It supersedes the prototype assumptions above. `platform.opendefence.fi/v1alpha1`
+UserBinding is an integration-owned observation: the integration creates one
+per User in its own namespace and writes `Synced`. Core only watches it. Spec
+contains `userRef.name`. Status contains `conditions` and `observedGeneration`.
+Do not write account IDs, callsigns, policy revisions or credential references to
+status: the structural schema would prune them. Resolve display data from User;
+keep grant and policy metadata in bounded integration Secrets. Binding existence
+or `Synced=True` is not an access assignment or a fresh policy projection.
+
+Core owns user mTLS authentication and any ForwardAuth configuration. The
+integration consumes one injected user UUID header, with configurable default
+`X-OpenDefence-User-UUID`. The parser accepts canonical UUID text or compact
+Base64URL, matches header names without case, and rejects duplicate headers,
+joined values and aliases. Preserve header pairs until validation; a dictionary
+that drops duplicates is unsuitable. Do not inspect client certificates, Basic
+credentials or legacy certificate-DN headers to authenticate REST callers.
+Core's edge must remove client-supplied identity headers and inject the verified
+UUID. Limit the integration listener to that trusted route. Header parsing alone
+does not prove authentication, policy freshness or access. Ingress enforcement
+is still a deployment check, not a second authentication server in this repo.
+
+Read Core's repository at `af0375a41aad095ce464ba588544930d0a486793`:
+[source](https://github.com/opendefence/core/tree/af0375a41aad095ce464ba588544930d0a486793).
+It is a scaffold at this revision and adds no effective-policy wire contract.
 
 ## Grant storage and restart behavior
 
@@ -157,6 +182,7 @@ claims and final UI federation gated. TAK profiles and sibling integration work
 remain deferred by the user's instruction.
 
 M2 can start canonical identity, paths, grant scope and pure policy regression
-tests against these semantic inputs. Production Core reads, status writes,
+tests against these semantic inputs. The supplied CRD now permits binding adapter
+implementation. Production policy reads,
 public authentication, issuance and public media routing require the listed
 contract decisions. Do not convert an internal test fixture into a Core schema.

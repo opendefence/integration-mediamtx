@@ -761,7 +761,7 @@
     "securitySchemes": {
       "ClientCertificate": {
         "type": "mutualTLS",
-        "description": "Traefik verifies the client certificate. Core ForwardAuth checks current credential, account and permission state. Remove untrusted identity headers. Block direct paths that bypass these checks."
+        "description": "Core owns public user mTLS authentication and any ForwardAuth configuration. The integration consumes Core's injected user UUID header, default X-OpenDefence-User-UUID (configurable). Require one canonical UUID text or compact Base64URL value. Core's edge removes client-supplied identity headers and prevents alternate ingress. The integration does not parse certificates or implement ForwardAuth."
       }
     },
     "parameters": {
@@ -2454,6 +2454,12 @@
   },
   "x-m1-contracts": "docs/m1-contracts.md",
   "x-m1-evidence": "docs/m1-findings.md",
+  "x-core-identity-header": {
+    "default": "X-OpenDefence-User-UUID",
+    "configurable": true,
+    "authenticationOwner": "opendefence/core",
+    "requirement": "Exactly one Core-injected canonical UUID; preserve and reject duplicate headers. The edge strips client values and the integration listener is restricted to the trusted route. This header is not a public authentication parameter."
+  },
   "x-design-gates": [
     {
       "id": "tak-support",
@@ -2461,11 +2467,11 @@
     },
     {
       "id": "core-binding",
-      "decision": "Agree UserBinding field ownership, immutable ID encoding, effective-policy projection and restore behavior."
+      "decision": "The supplied platform.opendefence.fi/v1alpha1 CRD defines integration-created userRef bindings and integration-owned Synced status. Status only permits conditions and observedGeneration. Effective-policy projection and identity restore remain open; bindings are provisioning observations, not assignments."
     },
     {
       "id": "core-authentication",
-      "decision": "Agree trusted ForwardAuth headers and prevention of alternate ingress, plus UI session and workload authentication alternatives. Verified mTLS is the proposed public baseline; no public authentication adapter is implemented."
+      "decision": "Core owns user mTLS and any ForwardAuth implementation. The integration's UUID header parser defaults to X-OpenDefence-User-UUID and supports a configured name. Verify header stripping and trusted-only ingress at deployment. UI session and workload authentication alternatives remain open."
     },
     {
       "id": "policy-freshness",
@@ -2498,7 +2504,8 @@
   },
   "x-storage-contract": {
     "authoritativeIdentity": "Core User resources",
-    "integrationMetadata": "Integration-owned UserBinding.status",
+    "integrationMetadata": "Integration-owned UserBinding.status.conditions and observedGeneration only; resolve identity/display data from Core User and store grant/policy metadata in bounded namespace Secrets.",
+    "bindingWrites": "Integration creates one platform.opendefence.fi/v1alpha1 UserBinding per User in its own namespace with spec.userRef.name; Core observes these bindings.",
     "credentials": "Namespace-scoped Secrets; never in binding status",
     "grantWrites": "API creates and revokes grant Secrets with atomic create and resource-version preconditions.",
     "statusWrites": "Operator is the sole integration status writer.",

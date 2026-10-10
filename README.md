@@ -30,3 +30,7 @@ and the remaining Core and routing gates.
 The [M2 policy implementation](docs/m2-policy.md) adds canonical stream paths and
 scoped admission checks with explicit fresh Core policy inputs. The public API
 and operator remain pending their shared contracts.
+Core owns user mTLS authentication. The integration's header parser consumes
+`X-OpenDefence-User-UUID` by default, with a configurable name. See
+[Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate
+header handling and the supplied UserBinding schema.
