@@ -4,6 +4,26 @@ Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator t
 MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
+## Zarf package checkpoint
+
+Date: 2026-10-11. Implementation commit: `34cc9658ece04f768d612700c990fa93d3b95c5a`.
+Following sibling Core's overlay names, `values/values.yaml` supplies the
+production namespace and `values/local-dev.yaml` selects the development
+namespace. `zarf.yaml` packages the current binding observation operator image,
+namespace RBAC and Deployment. Its only application setting,
+`CLOUDCOIL_NAMESPACE`, comes from the Pod namespace; the package `namespace`
+value controls the manifest. The package does not own a Namespace or Core CRDs.
+
+`task package:check` passed Zarf 0.87.0 lint and manifest inspection for both
+overlays. Schema validation rejected an invalid namespace. Podman built the
+ARM64, non-root operator image; Zarf created and inspected the image-bearing
+package archive. The image entry point ran in a read-only container.
+`task check` passed Ruff, strict Pyrefly and 201 tests; `task build` produced
+both Python distributions. All applicable pre-commit hooks passed. The package
+was not deployed to a cluster, and AMD64 and hosted CI builds were not run.
+MediaMTX provisioning and public API authorization remain gated on Core's
+effective-policy contract. See the [package workflow](../README.md#zarf-package).
+
 Reviewed implementation HEAD: `faf76f5c2bd9c8c0e60bc1df0da17c4f3dcf7000`.
 M2 commits: `4dc535f` (paths), `70bb721` (admission policy), `05f1687` (live test).
 The subsequent commits are `f69561c` (Core UUID header) and `a39005f` (binding adapter).
