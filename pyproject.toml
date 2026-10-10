@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "cloudcoil[kubernetes,operator]",
+    "httpx>=0.28,<1.0",
     "lib-opendefence-core>=0.2.1,<0.3",
 ]
 

@@ -4,6 +4,15 @@ Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator t
 MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
+## M2 session-removal checkpoint
+
+Date: 2026-10-11. Added a MediaMTX 1.21.2 control adapter that scans all pages
+for one grant username and kicks matching HLS, RTSPS, RTMPS, SRT or WebRTC
+connections. It repeats scans and reports incomplete cleanup on API errors or
+sessions that persist. `task check` passed Ruff, strict Pyrefly and 215 tests.
+See [session removal](m2-sessions.md). The adapter is not yet wired to persisted
+grant revocation or the operator, so no production cleanup guarantee is claimed.
+
 ## Zarf package checkpoint
 
 Date: 2026-10-11. Implementation commit: `34cc9658ece04f768d612700c990fa93d3b95c5a`.
