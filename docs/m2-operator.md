@@ -27,7 +27,7 @@ write. An unchanged observation preserves transition times and makes no write.
 This repairs observation status; it does not prove fresh authorization or end
 existing media sessions.
 
-## Run and generate manifests
+## Run
 
 Install the locked environment with `task sync`. The namespace and Core's shared
 User/UserBinding CRDs must already exist. `mediamtx-operator` uses the current context
@@ -43,6 +43,112 @@ The equivalent command is `uv run --locked mediamtx-operator run`. SIGINT and
 SIGTERM stop the application. Cloudcoil owns process signals, watches, retries
 and application-created transports. A caller-supplied Config stays caller-owned.
 The namespace defaults to `integration-mediamtx`.
+
+## Test with kubectl without core-operator
+
+Use a test cluster with the Core User and UserBinding custom resource
+definitions (CRDs) and a running `mediamtx-operator`. The commands below use
+the local development namespace. Set `MTX_NAMESPACE` to your integration
+namespace if it differs. Use a Kubernetes context where you may create a
+disposable User and patch User and UserBinding status. No `core-operator`
+Deployment is required. If `core-operator` runs in the selected cluster, it
+can replace the test projection. Run all command blocks in the same shell.
+
+Check the context, the CRDs, and `mediamtx-operator` before the test:
+
+```sh
+MTX_NAMESPACE=integration-mediamtx-dev
+kubectl config current-context
+kubectl get deployments -A
+kubectl get crd users.platform.opendefence.fi userbindings.platform.opendefence.fi
+kubectl -n "$MTX_NAMESPACE" rollout status deployment/mediamtx-operator
+kubectl -n "$MTX_NAMESPACE" logs deployment/mediamtx-operator --since=2m | grep -E 'Watch error for User|validation error' || true
+```
+
+Confirm that the deployment list has no `core-operator`. The last command must
+show no User watch error. A malformed User can stop the
+whole User watch. If the log reports a bad User, correct that fixture first.
+If the current User is valid but an old invalid event repeats, restart
+`mediamtx-operator`, then repeat the checks:
+
+```sh
+kubectl -n "$MTX_NAMESPACE" rollout restart deployment/mediamtx-operator
+kubectl -n "$MTX_NAMESPACE" rollout status deployment/mediamtx-operator
+```
+
+Create one User with a unique, valid callsign. Patch the User status
+subresource to supply test role and group projections. The test uses synthetic
+unique identifiers (UIDs). It does not need Role or Group objects for this
+binding-watch check. A normal User spec
+write does not update status because the CRD has a separate
+[status subresource](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#status-subresource).
+
+```sh
+MTX_USER="mtxmanual$(date +%s)"
+kubectl create -f - <<YAML
+apiVersion: platform.opendefence.fi/v1alpha1
+kind: User
+metadata:
+  name: $MTX_USER
+spec:
+  callsign: $MTX_USER
+YAML
+MTX_USER_UID=$(kubectl get user "$MTX_USER" -o jsonpath='{.metadata.uid}')
+MTX_BINDING="mediamtx-$(printf '%s' "$MTX_USER_UID" | tr -d '-')"
+kubectl patch user "$MTX_USER" --subresource=status --type=merge \
+  -p '{"status":{"roles":[{"name":"mediamtx-user","uid":"00000000-0000-0000-0000-000000000001"}],"groups":[{"name":"mtxmanualgroup","uid":"00000000-0000-0000-0000-000000000002"}]}}'
+kubectl -n "$MTX_NAMESPACE" wait --for=create "userbinding/$MTX_BINDING" --timeout=30s
+kubectl -n "$MTX_NAMESPACE" get userbinding "$MTX_BINDING" -o yaml
+```
+
+The UserBinding must name the test User in `spec.userRef.name`. Its
+`mediamtx.opendefence.fi/user-uuid` annotation must equal `MTX_USER_UID`.
+`mediamtx-operator` sets its `Synced` condition to `False`. This means media
+provisioning is incomplete, even when the test User has `mediamtx-user` in
+`status.roles`.
+
+To test a status-only User event, first set the disposable UserBinding to
+`Synced=True`. Then remove the projected roles and groups. The
+`mediamtx-operator` User watch must set `Synced=False` again:
+
+```sh
+MTX_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+MTX_BINDING_GENERATION=$(kubectl -n "$MTX_NAMESPACE" get userbinding "$MTX_BINDING" -o jsonpath='{.metadata.generation}')
+kubectl -n "$MTX_NAMESPACE" patch userbinding "$MTX_BINDING" \
+  --subresource=status --type=merge \
+  -p "{\"status\":{\"conditions\":[{\"type\":\"Synced\",\"status\":\"True\",\"reason\":\"Fixture\",\"message\":\"Test only.\",\"lastTransitionTime\":\"$MTX_NOW\",\"observedGeneration\":$MTX_BINDING_GENERATION}]}}"
+kubectl -n "$MTX_NAMESPACE" get userbinding "$MTX_BINDING" \
+  -o jsonpath='{.status.conditions[?(@.type=="Synced")].status}{"\n"}'
+kubectl patch user "$MTX_USER" --subresource=status --type=merge \
+  -p '{"status":{"roles":[],"groups":[]}}'
+kubectl -n "$MTX_NAMESPACE" wait \
+  --for='jsonpath={.status.conditions[?(@.type=="Synced")].status}=False' \
+  "userbinding/$MTX_BINDING" --timeout=30s
+```
+
+Delete the binding before the User. Core's admission webhook can reject User
+deletion while a UserBinding still refers to it. `mediamtx-operator` can
+recreate the binding while the User still exists, so delete the binding again
+after the User is gone:
+
+```sh
+kubectl -n "$MTX_NAMESPACE" delete userbinding "$MTX_BINDING" --ignore-not-found
+kubectl delete user "$MTX_USER" --ignore-not-found
+kubectl wait --for=delete "user/$MTX_USER" --timeout=30s
+kubectl -n "$MTX_NAMESPACE" delete userbinding "$MTX_BINDING" --ignore-not-found
+kubectl get user "$MTX_USER" --ignore-not-found -o name
+kubectl -n "$MTX_NAMESPACE" get userbinding "$MTX_BINDING" --ignore-not-found -o name
+```
+
+The last two commands must show no object. If User deletion reports an active
+binding, delete the binding and retry User deletion. If the binding reappears
+after the User is gone, delete it again and confirm its absence.
+
+This test proves CRD watch delivery and binding reconciliation without
+`core-operator`. The current `mediamtx-operator` does not authorize media from
+these fields. The test does not prove group-derived role permissions.
+
+## Generate manifests
 
 Generate RBAC without contacting Kubernetes:
 
