@@ -106,6 +106,10 @@ Core's edge must remove client-supplied identity headers and inject the verified
 UUID. Limit the integration listener to that trusted route. Header parsing alone
 does not prove authentication, policy freshness or access. Ingress enforcement
 is still a deployment check, not a second authentication server in this repo.
+The certificate proves User identity only. It grants no Roles. The integration
+reads the projected Role and Group lists from the current User resource. It
+applies its own MediaMTX Role rules. `mediamtx-operator` must reconcile the
+MediaMTX workload when that User resource changes.
 
 Read Core's repository at `af0375a41aad095ce464ba588544930d0a486793`:
 [source](https://github.com/opendefence/core/tree/af0375a41aad095ce464ba588544930d0a486793).

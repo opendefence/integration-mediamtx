@@ -22,6 +22,12 @@ Core plans to write effective Role and Group changes into the User object. A
 status-only User update maps to the same binding key. The current shared User
 model has only direct Roles, so `mediamtx-operator` still reports provisioning as
 pending after that event.
+
+User certificates grant no Roles. The projected Role and Group lists on the
+User resource are the membership input. Future `mediamtx-operator`
+reconciliation must apply this integration's Role rules to MediaMTX access
+when those lists change.
+
 Conflicts and dependency failures propagate to Cloudcoil's retry queue. Each
 attempt reads a new binding before its UID/resource-version guarded status
 write. An unchanged observation preserves transition times and makes no write.

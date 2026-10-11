@@ -16,6 +16,9 @@ Read [README.md](README.md) and [implementation status](docs/implementation-stat
 - Treat the projected User roles and memberships in Kubernetes CRD status as
   integration input. Do not require `core-operator` to run during integration
   reconciliation or tests. A test can supply the CRD state directly.
+- Treat a User certificate as identity proof only. It grants no Role or Group
+  membership. Use the projected User status lists when `mediamtx-operator`
+  reconciles MediaMTX access according to this integration's Role meanings.
 - Keep approved Users as permanent records. If `spec.approvedAt` is set, revoke
   the User with `spec.revokedAt`; do not delete or recreate that User. Use only
   unapproved Users for tests that delete or recreate User resources.

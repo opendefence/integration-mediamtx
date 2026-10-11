@@ -17,9 +17,12 @@ recreation tests use only unapproved Users.
 Date: 2026-10-11. Traefik ends User mutual Transport Layer Security (mTLS)
 for the public REST API. It sends a verified User universally unique identifier
 (UUID) in a trusted header. The integration does not read User certificate
-records. It will issue passwords for MediaMTX streams. The deployed
-`mediamtx-operator` creates human UserBindings only. TAKServer connection work
-remains deferred.
+records. A User certificate grants no Roles. Only the projected Role and Group
+lists on the User resource supply membership. `mediamtx-operator` must
+reconcile MediaMTX access from those lists when the Core projection contract
+and provisioning are implemented. The integration will issue passwords for
+MediaMTX streams. The deployed `mediamtx-operator` creates human UserBindings
+only. TAKServer connection work remains deferred.
 
 ## MediaMTX package checkpoint
 

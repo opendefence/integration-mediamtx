@@ -120,10 +120,16 @@ client certificates.
 
 Core owns User certificates and their activation. Traefik ends User mutual
 Transport Layer Security (mTLS) for the public REST API. It sends the verified
-User UUID in a trusted header. This integration does not read User certificate
-records. It will issue passwords for MediaMTX streams. In MediaMTX 1.21.2,
-MoQ also accepts a username and password through its authorization token. It
-does not require User certificate metadata.
+User UUID in a trusted header. A valid User certificate proves identity only.
+It grants no Role or Group membership. The integration uses the User UUID to
+read the current User resource. Only the projected Role and Group lists on that
+resource supply membership. `mediamtx-operator` must reconcile MediaMTX access
+from that state according to this integration's Role rules. The current
+`mediamtx-operator` only observes UserBindings; media access reconciliation is
+pending. This integration does not read User certificate records. It will
+issue passwords for MediaMTX streams. In MediaMTX 1.21.2, MoQ also accepts a
+username and password through its authorization token. It does not require
+User certificate metadata.
 
 An integration workload is not a User. Core plans a separate Integration
 Manifest for workload identity and client credentials. Do not create service
@@ -132,8 +138,8 @@ still open. TAKServer integration work remains deferred.
 
 ## Acceptance cases
 
-1. A User has a `Synced=True` binding but no effective MediaMTX Role or
-   `superadmin` Role. The integration denies media access.
+1. A User has a valid certificate and a `Synced=True` binding but no projected
+   MediaMTX Role or `superadmin` Role. The integration denies media access.
 2. A User with callsign `alpha` has `mediamtx-user` through a direct or Group
    assignment. The integration permits reading supported paths and publishing
    to `live/icu/alpha`. It denies publishing to `live/icu/alpha2`.

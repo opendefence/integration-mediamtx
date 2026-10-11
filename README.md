@@ -108,8 +108,11 @@ ends mTLS and sends a verified User UUID to the REST API. The integration's
 header parser consumes `X-OpenDefence-User-UUID` by default, with a configurable
 name. See the [Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate
 header handling and the supplied UserBinding schema.
-The integration does not read User certificate data. MediaMTX will check
-integration-issued passwords for media streams when grant issuance is connected.
+The certificate identifies the User. It grants no Roles. Media access depends
+on the projected Role and Group lists in that User resource and this
+integration's Role rules. The integration does not read User certificate data.
+MediaMTX will check integration-issued passwords for media streams when grant
+issuance is connected.
 Integration workloads do not use service Users or UserBindings.
 The [M2 binding adapter](docs/m2-bindings.md) implements atomic binding creation
 and guarded status writes, with an explicit live CRD probe. Core's effective
