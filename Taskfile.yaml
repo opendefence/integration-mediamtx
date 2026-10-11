@@ -127,6 +127,8 @@ tasks:
       - task: cluster:configure-mirrors
       - task: cluster:document-local-registry
       - task: base-package:install
+        vars:
+          BASE_ISSUER: '{{.BASE_ISSUER | default "ca"}}'
 
   base:status:
     desc: Show the base development cluster status

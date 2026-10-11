@@ -31,14 +31,27 @@ and jq as described in the [base prerequisites](https://github.com/opendefence/b
 Choose a published base version or an absolute path to a built package archive:
 
 ```sh
-task base:up BASE_PACKAGE=/absolute/path/to/zarf-package-base-arm64.tar.zst BASE_ISSUER=ca
+task base:up BASE_PACKAGE=/absolute/path/to/zarf-package-base-arm64.tar.zst
 task base:status
 ```
 
 `base:up` starts registries, creates Kind and deploys the base operators from
 the selected package. Alternatively, set `BASE_VERSION=<published-version>`;
 the package reference defaults to `oci://ghcr.io/opendefence/base:<version>`.
-Use `BASE_ISSUER=ca` for local CA mode; the package default is ACME.
+`base:up` selects base's local certificate authority (CA) mode by default.
+Base then creates `public-issuer` without an external ACME challenge. Set
+`BASE_ISSUER=acme` only when the cluster can pass that challenge. Direct
+`base-package:install` calls use the base package default unless you set
+`BASE_ISSUER=ca`.
+The local development overlay uses `local-dev.opendefence.fi` as its certificate
+name. That name resolves to `127.0.0.1` for local testing.
+To trust local media certificates in a client, export the base root certificate:
+
+```sh
+mkdir -p .local
+task base-package:export-ca > .local/public-root-ca.pem
+```
+
 Pass overrides directly, for example `CONTAINER_RUNTIME=podman` or
 `CLUSTER_NAME=my-dev`. Package commands require the current kubectl context to
 match `KUBE_CONTEXT` (default `kind-<CLUSTER_NAME>`); switch it explicitly when
@@ -114,6 +127,8 @@ The package installs a MediaMTX Deployment, ClusterIP Service, configuration,
 and a certificate from base's `public-issuer`. The media configuration has no
 users. It denies all stream and control requests until an authorization service
 is ready. The control API, metrics, and profiling listeners are disabled.
+The local development overlay uses the CA-backed `public-issuer` from base.
+This package does not configure the issuer.
 
 The package also installs ingress `NetworkPolicy` rules. They select the operator
 with no allowed Pod ingress and allow Traefik Pods in `traefik-system` to reach
@@ -137,9 +152,11 @@ The `namespace` value selects the dedicated namespace for both workloads.
 The `domain` value sets the media certificate name and WebRTC host. Set it to a
 real host before production deployment. The production default
 `opendefence.invalid` cannot receive a certificate.
+For local testing, keep `domain: local-dev.opendefence.fi` from
+`values/local-dev.yaml`.
 The Pod reads `CLOUDCOIL_NAMESPACE` from its own namespace through Kubernetes;
-no separate Pod environment setting is needed. For a standalone install, pass a
-values file or `--set-values namespace=<your-dedicated-namespace>` to Zarf.
+no separate Pod environment setting is needed. For a standalone install, give
+Zarf a values file with both `namespace` and `domain`.
 `KUBECONFIG` selects the administrator's deployment context, not Pod configuration.
 There are no other operator application environment settings yet; add future
 settings to the Zarf values, schema and manifest template when they appear.

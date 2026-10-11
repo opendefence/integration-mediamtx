@@ -25,7 +25,9 @@ MediaMTX container started as a non-root user with a read-only file system.
 It opened the selected protocol listeners, including MoQ over HTTP/2, HTTP/3,
 and QUIC. The MoQ TLS listener presented the mounted certificate. An
 unauthenticated HLS request returned 401. The shared development cluster has
-no `public-issuer`, so a live package deployment was not run.
+a Ready, CA-backed `public-issuer` from base. A live package deployment has
+not been run. The local overlay uses `local-dev.opendefence.fi`, which resolves
+to `127.0.0.1` for local testing.
 
 ## Grant retirement and retention checkpoint
 
