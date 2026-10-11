@@ -15,8 +15,8 @@ NOW = datetime(2026, 10, 10, 12, tzinfo=UTC)
 OWNER = UUID(int=1)
 BINDING = UUID(int=10)
 OTHER_OWNER = UUID(int=2)
-STREAM = StreamPath(tool="ipcam", owner_id=OWNER)
-OTHER_STREAM = StreamPath(tool="ipcam", owner_id=OTHER_OWNER)
+STREAM = StreamPath(tool="ipcam", owner_callsign="alpha")
+OTHER_STREAM = StreamPath(tool="ipcam", owner_callsign="alpha2")
 PASSWORD = "fixture_password_not_for_release_1234"  # nosec B105 # pragma: allowlist secret - Test-only credential
 GRANT = MediaGrant(
     id="g_" + "A" * 22,
@@ -32,6 +32,7 @@ GRANT = MediaGrant(
 POLICY = EffectivePolicy(
     subject_id=OWNER,
     binding_uid=BINDING,
+    callsign="alpha",
     approved=True,
     assigned=True,
     revision="policy-1",
@@ -90,6 +91,17 @@ def test_publish_requires_both_grant_scope_and_own_stream_permission() -> None:
     assert not allowed(request, grant, replace(POLICY, publish_own=False))
     assert not allowed(request | {"path": str(OTHER_STREAM)}, grant)
     assert not allowed(request | {"path": str(OTHER_STREAM)}, replace(grant, stream=OTHER_STREAM))
+    assert not allowed(request, grant, replace(POLICY, callsign="other"))
+
+
+def test_superadmin_can_use_any_media_path_with_a_scoped_grant() -> None:
+    admin = replace(POLICY, assigned=False, superadmin=True, read_all=False, publish_own=False)
+    assert allowed(policy=admin)
+    grant = replace(GRANT, action="publish", protocols=frozenset({"rtsps"}), stream=OTHER_STREAM)
+    request = PAYLOAD | {"action": "publish", "protocol": "rtsp", "path": str(OTHER_STREAM)}
+    assert allowed(request, grant, admin)
+    assert not allowed(request | {"path": str(STREAM)}, grant, admin)
+    assert not allowed(request, grant, replace(admin, approved=False))
 
 
 @pytest.mark.parametrize(
@@ -197,6 +209,8 @@ def test_credentials_and_unused_callback_fields_are_not_in_model_reprs() -> None
         {"approval_deadline": NOW.replace(tzinfo=None)},
         {"evaluated_at": NOW.replace(tzinfo=None)},
         {"approved": "false"},
+        {"superadmin": "true"},
+        {"callsign": "ALPHA"},
         {"read_paths": frozenset({"live/ipcam/ALPHA"})},
     ],
 )

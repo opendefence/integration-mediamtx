@@ -9,10 +9,11 @@ the supplied CRD and Core-injected UUID header and adds pinned Cloudcoil.
 ## Implemented behavior
 
 [`paths.py`](../src/opendefence_integration_mediamtx/paths.py) normalizes canonical lowercase
-UUID text and compact Base64URL to one UUID value. Public IDs and media paths use
-the compact form. Paths have exactly three segments: `live/{tool}/{owner}`.
-The parser rejects padding aliases, encoded separators, empty or dot segments,
-unknown tools, UUID-text path aliases, extra channels and trailing slashes.
+UUID text and compact Base64URL to one UUID value for User identity. After the
+2026-10-11 decision, media paths use the Core callsign:
+`live/{tool}/{callsign}`. Paths have exactly three segments. The parser rejects
+encoded separators, empty or dot segments, unknown tools, uppercase or invalid
+callsigns, extra channels and trailing slashes.
 Stream IDs have the `s1_` prefix and encode the canonical path. Decoding does
 not authorize the stream. The retained tool names are path categories, not a
 claim that their client profiles are supported.
@@ -40,11 +41,14 @@ at least 128 random bits as required by M1.
 - One exact stream and action within the grant's enabled protocols.
 - A non-revoked grant whose creation time has arrived and expiry has not passed.
 - Matching subject and binding UID in the current policy.
-- An approved, assigned principal and a currently fresh policy projection.
+- An approved principal with an assignment or the effective `superadmin` role,
+  and a currently fresh policy projection.
 - Current time strictly before any absolute approval deadline.
-- Explicit read permission for the stream, or own-stream publishing permission.
+- Read permission for the stream, or own-callsign publishing permission.
+- For effective `superadmin`, any supported media path and no separate MediaMTX
+  assignment. Grant scope and account checks still apply.
 
-There is no admin shortcut. A read grant cannot gain publishing or control
+There is no grant-scope shortcut for `superadmin`. A read grant cannot gain publishing or control
 access from wider principal permissions. Changing effective policy denies access
 without changing the User ID. A new binding UID invalidates an old binding's
 grant. Any revocation marker denies admission, even if its timestamp is in the
@@ -68,7 +72,7 @@ All 126 tests passed: 48 path cases, 68 admission cases and 10 foundation tests.
 Ruff, strict Pyrefly, the dependency lock check and both package builds passed.
 
 The existing [protocol runner](../spikes/m1/README.md) now loads the actual package
-source into its disposable callback Pod and uses canonical compact paths. Its
+source into its disposable callback Pod and uses canonical callsign paths. Its
 Core policy and grant inputs remain explicit fixtures. The management credential
 has a separate fixture-only check and does not depend on media policy freshness.
 The result records source hashes so the tested policy can be identified.
@@ -86,7 +90,9 @@ latency guarantee. The known broken prefix redirect remains a passing negative
 assertion. Generated-credential checks passed for current Pod logs and the
 callback event sample.
 
-These checks prove pure admission behavior and its selected MediaMTX callback
+The recorded live check used the earlier UUID-path fixture. The callback fixture
+now uses callsign paths; no new live protocol run is claimed here. These checks
+prove pure admission behavior and its selected MediaMTX callback
 compatibility. They do not prove Core provenance or freshness, grant persistence,
 credential issuance, concurrent quota enforcement, status reconciliation, public
 authentication, session-drain automation or client support. A false admission

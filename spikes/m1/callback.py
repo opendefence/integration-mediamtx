@@ -18,13 +18,14 @@ EVENTS = Path("/tmp/events.jsonl")  # nosec B108 # Private single-container fixt
 START = datetime.now(UTC)
 MEDIA_GRANTS: dict[str, MediaGrant] = {}
 POLICIES: dict[str, EffectivePolicy] = {}
+FIXTURE_USER_ID = UUID(int=1)
 for username, record in GRANTS.items():
     if record["action"] == "api":
         continue
     stream = parse_path(record["path"])
     MEDIA_GRANTS[username] = MediaGrant(
         id=username,
-        subject_id=stream.owner_id,
+        subject_id=FIXTURE_USER_ID,
         binding_uid=UUID(int=2),
         stream=stream,
         action=record["action"],
@@ -34,8 +35,9 @@ for username, record in GRANTS.items():
         expires_at=START + timedelta(minutes=10),
     )
     POLICIES[username] = EffectivePolicy(
-        subject_id=stream.owner_id,
+        subject_id=FIXTURE_USER_ID,
         binding_uid=UUID(int=2),
+        callsign="alpha",
         approved=True,
         assigned=True,
         revision="fixture-policy-1",

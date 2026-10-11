@@ -4,6 +4,13 @@ Date: 2026-10-10. These are integration design decisions and requirements for
 Core review, updated with the user's M2 clarification. They are not a running API. The
 [protocol findings](m1-findings.md) distinguish live evidence from design.
 
+Decision update, 2026-10-11: the user selected callsign-based media paths and
+the legacy read-all, publish-own path rule for normal media users. Core will let
+integrations define roles. Its global `superadmin` role grants all media access.
+There is no `productuser` type. See the [current Core handoff](core-media-policy-handoff.md).
+This update replaces the UUID-based media path and permission assumptions below.
+User and grant identity still use the immutable Core User UID.
+
 ## Core evidence
 
 The working `rasenmaeher-core-architecture-handoff.md` was found in the local

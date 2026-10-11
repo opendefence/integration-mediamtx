@@ -4,6 +4,20 @@ Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator t
 MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
+## Callsign path and role decision
+
+Date: 2026-10-11. The user selected the legacy callsign path rule for the first
+media role: normal media users can read all supported streams and publish only
+under their own callsign. Core will support integration-defined roles and a
+global `superadmin` role with all media permissions. There is no `productuser`
+type. The pure policy now uses `live/{tool}/{callsign}` with exact callsign
+segments. Grants and bindings still use the immutable User UID. The
+[Core media-policy handoff](core-media-policy-handoff.md) records the required
+Core role and freshness contract. Earlier UUID-path design text in the original
+plan and API draft is historical.
+`task check` passed Ruff, strict Pyrefly, and 228 tests. All pre-commit checks
+passed. The live MediaMTX protocol spike was not rerun with callsign paths.
+
 ## Grant reservation checkpoint
 
 Date: 2026-10-11. Added an internal Secret-backed reservation ledger.

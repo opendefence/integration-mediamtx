@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from opendefence_integration_mediamtx.auth import AuthRequest
-from opendefence_integration_mediamtx.paths import StreamPath, parse_path
+from opendefence_integration_mediamtx.paths import CALLSIGN_PATTERN, StreamPath, parse_path
 
 _PUBLIC_PROTOCOL = {"rtsp": "rtsps", "rtmp": "rtmps", "hls": "hls", "srt": "srt", "webrtc": "webrtc"}
 MEDIA_PROTOCOLS = frozenset(_PUBLIC_PROTOCOL.values())
@@ -22,12 +22,14 @@ def _aware(value: datetime) -> bool:
 class EffectivePolicy:
     subject_id: UUID
     binding_uid: UUID
+    callsign: str
     approved: bool
     assigned: bool
     revision: str
     evaluated_at: datetime
     valid_until: datetime
     approval_deadline: datetime | None
+    superadmin: bool = False
     read_all: bool = False
     read_paths: frozenset[StreamPath] = frozenset()
     publish_own: bool = False
@@ -37,7 +39,12 @@ class EffectivePolicy:
             raise ValueError("Invalid policy identity")
         if not isinstance(self.revision, str) or not self.revision.strip():
             raise ValueError("Missing policy revision")
-        if any(type(value) is not bool for value in (self.approved, self.assigned, self.read_all, self.publish_own)):
+        if not isinstance(self.callsign, str) or not re.fullmatch(CALLSIGN_PATTERN, self.callsign):
+            raise ValueError("Invalid policy callsign")
+        if any(
+            type(value) is not bool
+            for value in (self.approved, self.assigned, self.superadmin, self.read_all, self.publish_own)
+        ):
             raise ValueError("Invalid policy permission")
         if not _aware(self.evaluated_at) or not _aware(self.valid_until) or self.valid_until <= self.evaluated_at:
             raise ValueError("Invalid policy freshness")
@@ -111,10 +118,14 @@ def authorize_media(  # noqa: PLR0911 - Keep each admission requirement explicit
         return False
     if grant.subject_id != policy.subject_id or grant.binding_uid != policy.binding_uid:
         return False
-    if not policy.approved or not policy.assigned or not policy.evaluated_at <= now < policy.valid_until:
+    if (
+        not policy.approved
+        or not (policy.assigned or policy.superadmin)
+        or not policy.evaluated_at <= now < policy.valid_until
+    ):
         return False
     if policy.approval_deadline is not None and now >= policy.approval_deadline:
         return False
     if request.action == "read":
-        return policy.read_all or stream in policy.read_paths
-    return policy.publish_own and stream.owner_id == policy.subject_id
+        return policy.superadmin or policy.read_all or stream in policy.read_paths
+    return policy.superadmin or (policy.publish_own and stream.owner_callsign == policy.callsign)

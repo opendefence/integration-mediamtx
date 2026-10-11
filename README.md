@@ -78,6 +78,8 @@ scoped admission checks with explicit fresh Core policy inputs. The public API
 and MediaMTX provisioning remain pending their shared contracts.
 The [Core media-policy handoff](docs/core-media-policy-handoff.md) lists the
 Core decisions and acceptance cases that this integration needs.
+Current media paths use `live/{tool}/{callsign}`. The original plan and API draft
+retain the earlier UUID-path proposal as historical design text.
 Core owns user mTLS authentication. The integration's header parser consumes
 `X-OpenDefence-User-UUID` by default, with a configurable name. See
 [Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate

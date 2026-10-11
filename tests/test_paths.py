@@ -15,7 +15,7 @@ from opendefence_integration_mediamtx.paths import (
 
 OWNER = UUID("00000000-0000-4000-8000-000000000001")
 COMPACT_OWNER = "AAAAAAAAQACAAAAAAAAAAQ"
-PATH = f"live/ipcam/{COMPACT_OWNER}"
+PATH = "live/ipcam/alpha"
 
 
 def test_core_text_and_compact_ids_have_one_identity() -> None:
@@ -23,10 +23,10 @@ def test_core_text_and_compact_ids_have_one_identity() -> None:
     assert parse_user_id(str(OWNER)) == parse_user_id(COMPACT_OWNER) == OWNER
 
 
-@pytest.mark.parametrize("value", [0, 1, 2**128 - 1])
+@pytest.mark.parametrize("callsign", ["abc", "alpha", "z" * 30])
 @pytest.mark.parametrize("tool", ["icu", "gopro", "uas", "ipcam"])
-def test_paths_and_stream_ids_round_trip(tool: str, value: int) -> None:
-    path = StreamPath(tool=tool, owner_id=UUID(int=value))
+def test_paths_and_stream_ids_round_trip(tool: str, callsign: str) -> None:
+    path = StreamPath(tool=tool, owner_callsign=callsign)
     assert parse_path(str(path)) == parse_stream_id(path.stream_id) == path
     assert "=" not in path.stream_id
 
@@ -55,7 +55,6 @@ def test_rejects_noncanonical_user_ids(value: str) -> None:
     "value",
     [
         "",
-        PATH + "2",
         PATH + "/",
         PATH + "/channel",
         PATH.replace("live/", "live//"),
@@ -66,8 +65,11 @@ def test_rejects_noncanonical_user_ids(value: str) -> None:
         PATH.replace("/ipcam/", "%2Fipcam/"),
         PATH.replace("/ipcam/", "%2fipcam/"),
         PATH.replace("/ipcam/", "%252Fipcam/"),
-        PATH.replace(COMPACT_OWNER, str(OWNER)),
-        PATH.replace(COMPACT_OWNER, COMPACT_OWNER[:-1] + "R"),
+        PATH.replace("alpha", str(OWNER)),
+        PATH.replace("alpha", "ALPHA"),
+        PATH.replace("alpha", "al"),
+        PATH.replace("alpha", "a" * 31),
+        PATH.replace("alpha", "alpha%2Fother"),
         PATH + "?password=secret",
         PATH + "#fragment",
         "/" + PATH,
@@ -84,7 +86,7 @@ def test_rejects_ambiguous_paths(value: str) -> None:
     [
         "s2_bGl2ZQ",
         "s1_",
-        StreamPath(tool="ipcam", owner_id=OWNER).stream_id + "=",
+        StreamPath(tool="ipcam", owner_callsign="alpha").stream_id + "=",
         "s1_A",
         "s1_" + "A" * 257,
         "s1_" + base64.urlsafe_b64encode((PATH + "/channel").encode()).decode().rstrip("="),

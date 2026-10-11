@@ -16,8 +16,6 @@ import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
-from uuid import UUID
-
 from opendefence_integration_mediamtx.paths import StreamPath
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,8 +24,8 @@ STATE = ROOT / ".local/m1"
 PACKAGE = ROOT / "src/opendefence_integration_mediamtx"
 PACKAGE_MODULES = ("__init__", "auth", "paths", "policy")
 NAMESPACE = "mediamtx-m1"
-MEDIA_PATH = str(StreamPath(tool="ipcam", owner_id=UUID("00000000-0000-4000-8000-000000000001")))
-OTHER_PATH = str(StreamPath(tool="ipcam", owner_id=UUID("00000000-0000-4000-8000-000000000002")))
+MEDIA_PATH = str(StreamPath(tool="ipcam", owner_callsign="alpha"))
+OTHER_PATH = str(StreamPath(tool="ipcam", owner_callsign="alpha2"))
 PREFIX = "/integrations/mediamtx/media/hls"
 PUBLISHER = "g_" + "P" * 22
 READER = "g_" + "R" * 22
