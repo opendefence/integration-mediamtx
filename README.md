@@ -7,6 +7,11 @@ packaged MediaMTX server. User authorization and stream provisioning remain pend
 [original API draft](docs/openapi.json) are design references. See the
 [implementation status](docs/implementation-status.md) for current work and evidence.
 
+`mediamtx-operator` reads Kubernetes User CRD state. It does not call or require
+`core-operator` at runtime. Tests can supply projected User roles and group
+memberships directly in CRD status. Media authorization still needs an agreed
+effective-role projection schema and the public API implementation.
+
 Use Python 3.14, uv and Task 3.54.0. Install Task with `mise install`, or use
 the same version from the official Task distribution. Run `task sync`, then
 `task check` and `task build`. Run `task --list` to see the entry points.

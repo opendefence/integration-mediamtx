@@ -282,12 +282,15 @@ def test_user_events_map_only_canonical_cluster_identities(change: str) -> None:
     assert binding_keys(user, namespace=NAMESPACE) == expected
 
 
-def test_status_only_user_projection_update_requeues_the_same_binding() -> None:
+def test_status_only_role_and_group_projection_update_requeues_the_same_binding() -> None:
     user = core_user()
     updated = user.model_copy(deep=True)
     assert updated.metadata
     updated.metadata.resource_version = "6"
-    updated.status = UserStatus(roles=[ResolvedRef(name="superadmin", uid=str(UUID(int=4)))])
+    updated.status = UserStatus(
+        roles=[ResolvedRef(name="superadmin", uid=str(UUID(int=4)))],
+        groups=[ResolvedRef(name="medics", uid=str(UUID(int=5)))],
+    )
     assert (
         binding_keys(user, namespace=NAMESPACE)
         == binding_keys(updated, namespace=NAMESPACE)

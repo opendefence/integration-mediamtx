@@ -5,6 +5,8 @@ UserBindings in one namespace. It creates missing observations with the existing
 binding adapter. It reads the current User from Kubernetes before creation;
 cached identity only selects work. Recreated Users get separate UID-pinned
 bindings. It does not change Core Users, resolve roles or issue credentials.
+It does not call or require `core-operator`. A test can set User CRD status
+directly and trigger the same User watch.
 
 Provisioning remains incomplete while Core's effective Role projection and
 MediaMTX configuration reconciliation are pending. `mediamtx-operator` sets only

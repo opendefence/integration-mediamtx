@@ -5,6 +5,10 @@ Date: 2026-10-11. Gate: M2 policy, identity, bindings and
 The MediaMTX server is packaged. Stream provisioning and public API authorization
 still need Core's effective Role projection and integration code.
 M3 has not started.
+`mediamtx-operator` does not require a running `core-operator`. Kubernetes
+User CRD status is the input contract. Tests can write projected roles and
+memberships directly. The missing effective-role fields remain a schema gap,
+not a `core-operator` availability gate.
 
 ## User identity boundary
 
@@ -567,8 +571,9 @@ inheritance algorithm or user database.
 Binding ownership/schema and the integration's injected-header responsibility
 are resolved by the user's M2 clarification. Core must project effective Roles,
 identity state, approval deadlines, and revision data into each User. The
-installed Core model library does not define that projection. No fallback
-authority is assumed. Core owns
+installed Core model library does not define that projection. `mediamtx-operator`
+will read the CRD projection, whether `core-operator` or a test fixture wrote it.
+No fallback authority is assumed. Core owns
 certificate activation; media sessions are not activation evidence. Validate
 header stripping and trusted-only ingress in deployment; do not build ForwardAuth here.
 

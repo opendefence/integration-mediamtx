@@ -13,6 +13,9 @@ Read [README.md](README.md) and [implementation status](docs/implementation-stat
   `tak-operator`, or `mediamtx-operator` as applicable. Do not use
   "the operator" when the name is known. Apply this rule to code comments,
   documentation, handoffs, and progress reports.
+- Treat the projected User roles and memberships in Kubernetes CRD status as
+  integration input. Do not require `core-operator` to run during integration
+  reconciliation or tests. A test can supply the CRD state directly.
 
 Run `task check` after code changes.
 Run `task package:check` after Zarf package or overlay changes.

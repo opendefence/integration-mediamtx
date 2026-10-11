@@ -4,6 +4,10 @@ Date: 2026-10-11. This handoff describes the Core data that the MediaMTX
 integration needs. Core owns User identity, account state, and effective Role
 and Group membership. Core does not decide what a MediaMTX role permits. This
 integration owns those meanings and the media access decision.
+The integration will trust projected User roles and memberships in Kubernetes
+custom resource definition (CRD) status. `mediamtx-operator` already watches
+that state. It does not require `core-operator` to run. Tests can provide the
+CRD state directly.
 
 ## Current gap
 
@@ -14,7 +18,8 @@ integration already watches Users. A User update queues its UserBinding for
 reconciliation.
 
 The current User model has no complete effective Role set or bounded freshness
-rule. The integration cannot treat direct Role references as the complete
+rule. The presence or absence of `core-operator` does not change this schema
+gap. The integration cannot treat direct Role references as the complete
 access decision. It cannot safely issue public media credentials, admit live
 MediaMTX connections, or mark media provisioning complete from those fields.
 The running `mediamtx-operator` keeps `UserBinding.status` at `Synced=False`.
@@ -80,11 +85,13 @@ schema. Core does not need to run the integration's path or grant logic.
 
 ## Update delivery and freshness
 
-The planned `core-operator` will update the User when relevant Role, Group, or account
-inputs change. The integration watches cluster-scoped Users and maps each
-event to the User's UID-pinned binding. Startup listing and periodic
-reconciliation also queue work. The integration does not need to watch Roles
-or Groups or calculate Group inheritance.
+The planned `core-operator` will write User projections when relevant Role,
+Group, or account inputs change. Another authorized CRD writer can supply the
+same state for testing. `mediamtx-operator` watches cluster-scoped Users and
+maps each event to the User's UID-pinned binding. Startup listing and periodic
+reconciliation also queue work. The integration does not need to call
+`core-operator` or check its availability. It does not need to watch Roles or
+Groups or calculate Group inheritance when the User projection is complete.
 
 Core must define the projection version, evaluation time, expiry or refresh
 rule, and behavior when a reference is unresolved. It must define a maximum
@@ -93,6 +100,8 @@ expired, or unavailable data denies new admission. The original plan names
 15 seconds for policy freshness and 30 seconds for denial and session removal
 as targets. These targets are not measured guarantees. The integration cannot
 remove a MediaMTX session while its control API is unavailable.
+Any validity limit is data in the CRD projection. `mediamtx-operator` must not
+infer projection validity from `core-operator` process health.
 
 Core owns User mutual Transport Layer Security (mTLS) authentication. At the
 trusted API edge, Core strips any client-supplied User identity header and
