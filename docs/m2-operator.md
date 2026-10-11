@@ -91,5 +91,14 @@ Both sibling clusters remained present. The original binding result record is pr
 The operator probe passed again with `lib-opendefence-core` 0.2.1+261010 and
 Core's current CRDs; fixture and owned-cluster cleanup passed. The original
 operator result record remains a Cloudcoil-only checkpoint.
-Live RBAC enforcement and a
-packaged operator deployment remain separate checks. TAK remains deferred.
+The live role checks and packaged operator deployment passed in an isolated Kind cluster. The first
+Deployment crashed because Cloudcoil could not create a temporary directory on
+the read-only root filesystem. The overlay now mounts a 16 MiB memory-backed
+volume at `/tmp`. One replica became available after this change.
+
+The deployed ServiceAccount could read Users, create UserBindings and patch
+binding status. Kubernetes denied Secret reads, binding deletion and binding
+creation in another namespace. A fixture User received a UID-pinned binding
+with `Synced=False`. The owned cluster and kubeconfig were removed. The sibling
+clusters remained present. This check does not prove MediaMTX provisioning or
+network policy enforcement. TAK remains deferred.

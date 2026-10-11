@@ -4,6 +4,25 @@ Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator t
 MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
+## Packaged operator deployment checkpoint
+
+Date: 2026-10-11. The local-dev Zarf overlay was deployed to an isolated Kind
+cluster with the current Core resource definitions. The first Pod could not start because
+Cloudcoil needs a temporary directory and the root filesystem is read-only.
+The Deployment now mounts a 16 MiB memory-backed volume at `/tmp`.
+The corrected Deployment rolled out with one available replica.
+
+The deployed ServiceAccount could read Core Users, create UserBindings and patch
+their status. Kubernetes denied Secret reads, binding deletion and binding
+creation in another namespace. A fixture User caused the operator to create one
+UserBinding pinned to that User's identifier, with `Synced=False`. The owned cluster and its kubeconfig
+were removed. The three sibling Kind clusters remained present.
+
+`task check` passed Ruff, strict Pyrefly and 216 tests. `task package:check`
+passed Zarf lint and both overlay renders. The ARM64 Zarf archive was rebuilt
+and its definition inspected. This check does not prove network policy
+enforcement or MediaMTX provisioning.
+
 ## Media ingress policy checkpoint
 
 Date: 2026-10-11. The Zarf package now includes namespaced ingress

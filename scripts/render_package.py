@@ -25,8 +25,10 @@ def render() -> str:
         "runAsGroup": 65532,
         "seccompProfile": {"type": "RuntimeDefault"},
     }
+    pod["volumes"] = [{"name": "runtime-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": "16Mi"}}]
     container = pod["containers"][0]
     container.update(
+        volumeMounts=[{"name": "runtime-tmp", "mountPath": "/tmp"}],  # nosec B108 # Pod-only memory volume.
         ports=[{"name": "health", "containerPort": 8080}],
         readinessProbe={"httpGet": {"path": "/readyz", "port": "health"}},
         livenessProbe={"httpGet": {"path": "/healthz", "port": "health"}},

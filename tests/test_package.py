@@ -27,8 +27,13 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
         binding = next(document for document in documents if document["kind"] == "ClusterRoleBinding")
         assert binding["subjects"][0]["namespace"] == namespace
         deployment = next(document for document in documents if document["kind"] == "Deployment")
-        container = deployment["spec"]["template"]["spec"]["containers"][0]
+        pod = deployment["spec"]["template"]["spec"]
+        container = pod["containers"][0]
         assert container["image"] == image
+        assert pod["volumes"] == [{"name": "runtime-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": "16Mi"}}]
+        assert container["volumeMounts"] == [
+            {"name": "runtime-tmp", "mountPath": "/tmp"}  # nosec B108 # Pod mount, not a host path.
+        ]
         assert container["env"] == [
             {"name": "CLOUDCOIL_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}
         ]

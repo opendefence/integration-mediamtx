@@ -97,6 +97,9 @@ spec:
               fieldPath: metadata.namespace
         command:
         - mediamtx-operator
+        volumeMounts:
+        - name: runtime-tmp
+          mountPath: /tmp
         ports:
         - name: health
           containerPort: 8080
@@ -126,3 +129,8 @@ spec:
         runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+      - name: runtime-tmp
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Mi
