@@ -2457,7 +2457,7 @@
   },
   "x-design-gates": [
     {
-      "decision": "TAK profiles and cross-repository integration are deferred until the related sibling repository tasks are complete. Do not advertise TAK capabilities before then.",
+      "decision": "TAK integration work is in scope again as of 2026-10-11. Local administrator access to TAKServer port 8443 is verified. TAK profiles and client integration still need implementation and tests before runtime capabilities can advertise them.",
       "id": "tak-support"
     },
     {

@@ -87,8 +87,10 @@ Run cluster commands one at a time.
 See the [Kind rootless requirements](https://kind.sigs.k8s.io/docs/user/rootless/)
 before testing UDP traffic. The isolated Kind lifecycle tasks install no application workload.
 
-TAK profiles and integration with the sibling TAK repositories are deferred until
-their current work is complete. Do not advertise TAK support yet.
+TAK integration work is in scope. The local MediaMTX integration certificate
+has administrator access to TAKServer port 8443 through the cluster Service.
+See the [TAK checkpoint](docs/implementation-status.md#tak-administrator-access-checkpoint).
+TAK video profiles and client support still need implementation and tests.
 
 See the [decision record](docs/decisions/0001-foundation.md) and the
 [implementation status](docs/implementation-status.md) for scope and test evidence.

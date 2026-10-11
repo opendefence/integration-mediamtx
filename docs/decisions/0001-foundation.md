@@ -24,10 +24,11 @@ Keep its kubeconfig inside this checkout. Refuse to adopt an existing cluster.
 Keep an ownership record before creation so failed creation can be cleaned up.
 Only named, owned clusters can be deleted. Load image archives explicitly.
 
-The user deferred TAK support on 2026-10-10. Defer TAK video XML profiles and
-all integration with sibling TAK tasks. Those profile names remain in the draft
-contract for later review. Keep them out of runtime capabilities until the sibling
-work is ready and client tests pass.
+The user deferred TAK support on 2026-10-10 and restored its scope on
+2026-10-11. The [TAK checkpoint](../implementation-status.md#tak-administrator-access-checkpoint)
+records local administrator access through the sibling `integration-tak`
+deployment. TAK video XML profiles remain outside runtime capabilities until
+implementation and client tests pass.
 
 Core policy, status ownership, identity encoding, HTTP routing and session expiry
 remain M1 decisions. Do not invent Core resource fields or identity headers.

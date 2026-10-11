@@ -12,6 +12,50 @@ and no new Core policy projection fields.
 Approved Users stay as permanent records after revocation. Deletion and
 recreation tests use only unapproved Users.
 
+## TAK administrator access checkpoint
+
+Date: 2026-10-11. TAK integration work is in scope again. The existing
+`integration-tak` deployment in `kind-opendefence-dev` was already ready.
+TAKServer and `tak-operator` remain running in namespace `integration-tak`.
+The Kubernetes Deployment for `tak-operator` is `integration-tak-operator`.
+
+cert-manager issued `Certificate/mediamtx-tak-admin` in
+`integration-mediamtx-dev`. Its Secret has the same name. The certificate
+common name is `integration-mediamtx-admin`. It expires on 2027-01-09 at
+16:48:14 UTC. It uses `ClusterIssuer/public-issuer`, as the current test User
+certificates do. Both public certificates passed client certificate validation
+against the same CA from TAK's client trust Secret.
+
+A one-time process in the `tak-operator` Pod used its installed Java Native
+Interface (JNI) runtime to register the public certificate. It verified the
+stored fingerprint and `ROLE_ADMIN` after registration. Only the public
+certificate entered that Pod. The private key stays in the MediaMTX namespace
+Secret. No User resource was created or changed.
+
+A temporary Job in `integration-mediamtx-dev` connected to
+`tak-server.integration-tak.svc.cluster.local:8443`. The request used mutual
+Transport Layer Security (mTLS). It verified the server CA and certificate
+name `tak.localtest.me`. The administrator endpoint
+`/Marti/api/user-management/api/list-users` returned HTTP 200 and included
+`integration-mediamtx-admin`. A request without a client certificate failed.
+This check used cluster networking without port forwarding.
+
+The local probe inputs and output are under `.local/tak/`. The client key was
+not exported to the checkout. Temporary probe resources were removed after
+the check. The certificate, Secret, and TAK administrator record remain.
+The application Deployments do not mount this new Secret yet.
+
+This is a local development registration. `tak-operator` does not yet
+reconcile this extra integration identity or register its renewed leaf.
+Certificate renewal needs a new fingerprint registration and another HTTPS
+check. General integration identity admission in TAK strict mode remains
+unavailable. The current deployment uses legacy authentication. TAK video
+profiles and client tests remain pending. Kind uses `kindnet`, so this check
+does not prove NetworkPolicy enforcement.
+
+`task check` passed all 264 tests, Ruff, and strict Pyrefly. All applicable
+pre-commit checks passed. No application code or package overlay changed.
+
 ## Image publishing and version checkpoint
 
 Date: 2026-10-11. `.bumpversion.toml` now follows the `tak-server` date format.
@@ -99,7 +143,8 @@ for the public REST API. It sends a verified User universally unique identifier
 records. A User certificate grants no Roles. Only the projected Role and Group
 lists on the User resource supply membership. The callback fetches the User
 on each request and reads `superadmin` from `status.roles`. The password and
-approval checks also apply to superadmins. TAKServer connection work remains deferred.
+approval checks also apply to superadmins. The later TAK checkpoint above
+records local administrator access.
 
 ## Callsign authorization checkpoint
 
@@ -708,9 +753,9 @@ route contract. Strict deadline enforcement during callback, `mediamtx-operator`
 or control outage has no accepted mechanism. Keep the strict-outage capability false.
 The 15-second freshness and 30-second removal targets are not measured guarantees.
 
-TAK-specific support stays deferred until the sibling TAK tasks are complete.
-This includes TAK video XML and cross-repository integration. Existing TAK names
-in the draft API do not advertise runtime support.
+TAK integration work is in scope. Local administrator access to TAKServer
+port 8443 is verified. TAK video XML and client integration remain pending.
+Existing TAK names in the draft API do not advertise runtime support.
 
 The packaged `mediamtx-operator`, HTTPS callback, and MediaMTX server are
 deployed locally with callsign/password authorization. Bindings stay `Synced=False`
