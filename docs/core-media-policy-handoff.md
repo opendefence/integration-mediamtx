@@ -69,7 +69,13 @@ The packaged MediaMTX server uses the private HTTPS callback. Automated
 removal of existing sessions and public credential delivery remain integration
 work. Bindings remain `Synced=False` until that lifecycle is complete.
 These tasks are not blocked by a new Core media-policy contract. The integration's own
-control credential is separate; it is not implemented by the User callback.
+control credential is separate. The callback permits that service identity
+to use only the private control API.
+
+Revoking a User needs no Core schema change. Mutable callsigns and
+public names are a separate feature request. See the
+[Core User rename handoff](core-user-rename-handoff.md) for suggested identity,
+lookup, cleanup, and certificate contracts. No Core change is implemented here.
 
 ## Acceptance cases
 
