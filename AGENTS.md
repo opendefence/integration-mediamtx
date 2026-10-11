@@ -29,3 +29,6 @@ Read [README.md](README.md) and [implementation status](docs/implementation-stat
 Run `task check` after code changes.
 Run `task package:check` after Zarf package or overlay changes.
 Keep `zarf.yaml` in sync with overlay changes.
+Run `uv run --locked prek install` when setting up this repository. This installs
+the basic pre-commit checks. Run `uv run --locked prek run --all-files` regularly.
+Run all-file checks before any authorized push or pull request.

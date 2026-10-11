@@ -12,6 +12,28 @@ and no new Core policy projection fields.
 Approved Users stay as permanent records after revocation. Deletion and
 recreation tests use only unapproved Users.
 
+## Integration registration checkpoint
+
+Date: 2026-10-11. Updated the shared Core library to `0.2.2+261011`.
+The Zarf package now installs a cluster-scoped Integration record named after
+the integration namespace. The record contains the product description,
+package version, and network intent. It declares no extra Roles and no UI
+component. Current callsign/password access still needs no MediaMTX Role.
+`core-operator` owns Integration status. `mediamtx-operator` needs no new
+cluster write permission for this record. Zarf owns installation and removal.
+
+`task check` passed 253 tests, Ruff, and strict Pyrefly. The package test
+validates both overlay records with the shared Integration model. Zarf lint
+and both overlay renders passed. Kubernetes accepted the record in a server
+dry run. The ARM64 package built and deployed to `kind-opendefence-dev`.
+Zarf created `Integration/integration-mediamtx-dev`. All applicable pre-commit
+checks passed. Local pre-commit and commit-message hooks are installed.
+Both Deployments are ready. The restarted callback contains Core library
+`0.2.2+261011`. The required ponytail-audit assumed one MediaMTX instance and
+a few hundred Users. It found no new defect in this change. Credential
+delivery, session cleanup, certificate reload, and the documented User watch
+limit remain separate work. Production deployment was not tested.
+
 ## User identity boundary
 
 Date: 2026-10-11. Traefik ends User mutual Transport Layer Security (mTLS)

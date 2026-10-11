@@ -21,6 +21,7 @@ If mise is not active in your shell, prefix commands with `mise exec --`.
 The Python package is `opendefence_integration_mediamtx`.
 Its Core resource models come from `lib-opendefence-core` on the configured
 [pypilocal index](https://nexus.dev.pvarki.fi/repository/pypilocal/).
+The locked version is `0.2.2+261011`, which includes the Integration resource.
 Use that index when installing a built wheel outside this uv project.
 Run `uv run --locked prek install` to install the local checks.
 Run `uv run --locked prek run --all-files` to check the whole repository.
@@ -139,6 +140,15 @@ connected to issuance or `mediamtx-operator` yet.
 Base, Core and Core's shared CRDs must be installed first. Create
 a dedicated namespace before deploying; this package leaves namespace lifecycle
 with the cluster owner so removing it cannot delete unrelated objects.
+The Core CRDs must include `integrations.platform.opendefence.fi`.
+Zarf creates a cluster-scoped Integration record named after the selected
+namespace. Local and production installations therefore have separate records.
+The record declares the product name, package version, and network intent.
+It has no extra Roles or UI link. Normal access uses callsign rules;
+`superadmin` remains a global Core Role. `core-operator` owns Integration status.
+The network intent permits public ingress and Internet egress for media clients,
+including WebRTC connectivity checks. This metadata does not enforce traffic
+rules. The package's NetworkPolicies remain the enforcement configuration.
 The package installs a MediaMTX Deployment, ClusterIP Service, configuration,
 and a certificate from base's `public-issuer`. MediaMTX calls the private HTTPS
 authorization service beside `mediamtx-operator`. A namespace-local cert-manager

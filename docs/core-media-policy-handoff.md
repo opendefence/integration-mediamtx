@@ -5,6 +5,11 @@ The current User schema is sufficient for the first MediaMTX authorization
 rule. No new media Role, policy revision, expiry field, or Core permission
 endpoint is required.
 
+Core library `0.2.2+261011` now supplies the cluster-scoped Integration model.
+The MediaMTX Zarf package creates one record named after its namespace. It
+declares no extra Roles. `core-operator` owns its status. The Integration
+record does not change the User authorization rules below.
+
 ## Current authorization rule
 
 The media username is the User callsign. Core uses that callsign as

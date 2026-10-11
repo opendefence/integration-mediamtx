@@ -8,6 +8,13 @@ values:
     - values/values.yaml
   schema: values/values.schema.json
 components:
+  - name: integration
+    required: true
+    manifests:
+      - name: integration
+        template: true
+        files:
+          - manifests/integration/integration.yaml.tmpl
   - name: auth-tls
     required: true
     manifests:

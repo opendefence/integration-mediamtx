@@ -4,9 +4,29 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from lib_opendefence_core.models.v1alpha1 import Integration
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMESPACE_TEMPLATE = "{{ .Values.namespace }}"
+
+
+def test_integration_registration_uses_the_shared_model_without_extra_roles() -> None:
+    package = yaml.safe_load((ROOT / "zarf.yaml").read_text())
+    component = next(item for item in package["components"] if item["name"] == "integration")
+    assert component["required"] is True
+    template = (ROOT / component["manifests"][0]["files"][0]).read_text()
+    for values_file in ("values/values.yaml", "values/local-dev.yaml"):
+        namespace = yaml.safe_load((ROOT / values_file).read_text())["namespace"]
+        document = yaml.safe_load(template.replace(NAMESPACE_TEMPLATE, namespace))
+        registration = Integration.model_validate(document)
+        assert registration.kind == "Integration" and registration.name == namespace
+        assert registration.metadata and registration.metadata.namespace is None
+        assert registration.status is None
+        assert registration.spec.version == package["metadata"]["version"]
+        assert registration.spec.extra_roles == []
+        assert registration.spec.network_policy.ingress == "Public"
+        assert registration.spec.network_policy.egress == "Internet"
+        assert registration.spec.product_info and registration.spec.product_info.component is None
 
 
 def test_zarf_package_matches_the_operator_overlay() -> None:
