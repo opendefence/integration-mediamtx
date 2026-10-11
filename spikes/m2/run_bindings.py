@@ -255,7 +255,7 @@ async def exercise_operator(config: Config) -> dict[str, Any]:  # noqa: PLR0915 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--crds", type=Path, required=True, help="The supplied opendefence_core_crds.yaml")
-    parser.add_argument("--operator", action="store_true", help="Also exercise the running binding operator")
+    parser.add_argument("--operator", action="store_true", help="Also exercise the running mediamtx-operator")
     args = parser.parse_args()
     source = args.crds.read_bytes()
     documents: list[dict[str, Any]] = [

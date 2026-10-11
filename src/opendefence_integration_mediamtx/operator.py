@@ -50,7 +50,7 @@ def binding_keys(user: User, *, namespace: str) -> list[ResourceKey]:
 
 async def reconcile_binding(request: Request[UserBinding], *, namespace: str) -> Result | None:
     if request.namespace != namespace:
-        raise ValueError("UserBinding is outside the operator namespace")
+        raise ValueError("UserBinding is outside the mediamtx-operator namespace")
     bindings = await request.client(UserBinding)
     try:
         binding = await bindings.get(request.name)

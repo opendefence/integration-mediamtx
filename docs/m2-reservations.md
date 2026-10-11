@@ -27,6 +27,6 @@ the ledger entry. An interrupted removal leaves the ledger entry for retry.
 This adapter does not issue credentials. The separate
 [grant record adapter](m2-grants.md) stores individual grant Secrets. A
 scheduled cleanup loop and the public API still need implementation. The
-operator has no Secret permissions yet. Do not use these adapters for
+`mediamtx-operator` has no Secret permissions yet. Do not use these adapters for
 production issuance until those parts and Core's effective Role projection are
 ready.

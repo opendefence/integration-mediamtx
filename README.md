@@ -1,8 +1,8 @@
 # OpenDefence MediaMTX integration
 
 This repository starts the replacement for the legacy MediaMTX integration.
-It includes policy adapters, a binding observation operator, and a packaged
-MediaMTX server. User authorization and stream provisioning remain pending. The
+It includes policy adapters, the `mediamtx-operator` binding observer, and a
+packaged MediaMTX server. User authorization and stream provisioning remain pending. The
 [original implementation plan](docs/integration-mediamtx-plan.md) and
 [original API draft](docs/openapi.json) are design references. See the
 [implementation status](docs/implementation-status.md) for current work and evidence.
@@ -35,7 +35,7 @@ task base:up BASE_PACKAGE=/absolute/path/to/zarf-package-base-arm64.tar.zst
 task base:status
 ```
 
-`base:up` starts registries, creates Kind and deploys the base operators from
+`base:up` starts registries, creates Kind and deploys the base components from
 the selected package. Alternatively, set `BASE_VERSION=<published-version>`;
 the package reference defaults to `oci://ghcr.io/opendefence/base:<version>`.
 `base:up` selects base's local certificate authority (CA) mode by default.
@@ -109,7 +109,7 @@ Integration workloads do not use service Users or UserBindings.
 The [M2 binding adapter](docs/m2-bindings.md) implements atomic binding creation
 and guarded status writes, with an explicit live CRD probe. Core's effective
 Role projection and the public API remain separate work. The
-[M2 binding operator](docs/m2-operator.md) runs these observations with
+[`mediamtx-operator`](docs/m2-operator.md) runs these observations with
 `task operator:run`. Provisioning stays incomplete until Core's Role
 projection and MediaMTX configuration are implemented.
 The [M2 session adapter](docs/m2-sessions.md) can remove connections by grant
@@ -119,12 +119,12 @@ reservations in Kubernetes Secrets. It is not connected to issuance yet.
 The [M2 grant record adapter](docs/m2-grants.md) stores a reserved media grant,
 persists revocation, drains supplied MediaMTX instances before releasing active
 quota, and removes retained records after their retry window. It is not
-connected to issuance or the operator yet.
+connected to issuance or `mediamtx-operator` yet.
 
 ## Zarf package
 
-`zarf.yaml` packages the binding operator and MediaMTX 1.21.2. It builds the
-operator image locally and includes the MediaMTX image in the offline package.
+`zarf.yaml` packages `mediamtx-operator` and MediaMTX 1.21.2. It builds the
+`mediamtx-operator` image locally. It includes the MediaMTX image in the offline package.
 Base, Core and Core's shared CRDs must be installed first. Create
 a dedicated namespace before deploying; this package leaves namespace lifecycle
 with the cluster owner so removing it cannot delete unrelated objects.
@@ -135,11 +135,11 @@ is ready. The control API, metrics, and profiling listeners are disabled.
 The local development overlay uses the CA-backed `public-issuer` from base.
 This package does not configure the issuer.
 
-The package also installs ingress `NetworkPolicy` rules. They select the operator
+The package also installs ingress `NetworkPolicy` rules. They select `mediamtx-operator`
 with no allowed Pod ingress and allow Traefik Pods in `traefik-system` to reach
 MediaMTX's HLS, WebRTC signaling, RTSPS, RTMPS, SRT, WebRTC ICE, and MoQ ports. The
-operator Pod may reach MediaMTX's private control API on port 9997 when that API
-is enabled. Other NetworkPolicies can add permissions. The MediaMTX Pod uses
+`mediamtx-operator` Pod may reach MediaMTX's private control API on port 9997
+when that API is enabled. Other NetworkPolicies can add permissions. The MediaMTX Pod uses
 the `app.kubernetes.io/name: mediamtx` label and the pinned
 [MediaMTX 1.21.2 ports](https://github.com/bluenviron/mediamtx/blob/v1.21.2/mediamtx.yml)
 for these rules to apply. RTSPS, RTMPS, and MoQ use the issued certificate.
@@ -167,11 +167,11 @@ The Pod reads `CLOUDCOIL_NAMESPACE` from its own namespace through Kubernetes;
 no separate Pod environment setting is needed. For a standalone install, give
 Zarf a values file with both `namespace` and `domain`.
 `KUBECONFIG` selects the administrator's deployment context, not Pod configuration.
-There are no other operator application environment settings yet; add future
-settings to the Zarf values, schema and manifest template when they appear.
+There are no other `mediamtx-operator` application environment settings yet.
+Add future settings to the Zarf values, schema and manifest template when they appear.
 
 Install Zarf 0.87.0 and run `task package:check` to lint and render both
-overlays. `task package:render` regenerates the operator manifest after its
+overlays. `task package:render` regenerates the `mediamtx-operator` manifest after its
 controller, RBAC or Deployment overlay changes; `task check` rejects a stale
 generated file. `task package:inspect` renders the local-dev overlay by default;
 set `VALUES_FILE=values/values.yaml` for the production default. To build a
@@ -184,7 +184,7 @@ task package:build ARCH=arm64 CONTAINER_RUNTIME=podman
 The archive is `dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst`.
 For an AMD64 Docker host, omit those overrides (Docker 25 or newer is needed
 for a compatible [Zarf image archive](https://docs.zarf.dev/ref/components/)).
-The build creates an ignored operator OCI image archive in `.local/`. Zarf pulls
+The build creates an ignored `mediamtx-operator` OCI image archive in `.local/`. Zarf pulls
 the pinned MediaMTX image while it creates the package.
 For the local Kind cluster, select its Kubernetes context. Create the namespace
 specified in `values/local-dev.yaml`. Then deploy with:
@@ -194,8 +194,8 @@ kubectl create namespace integration-mediamtx-dev
 task package:deploy:local PACKAGE_FILE=dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst
 ```
 
-This task loads the built operator image into Kind before it deploys the package
-in Zarf connected mode. For a Zarf-initialized cluster, use `task package:deploy`
+This task loads the built `mediamtx-operator` image into Kind before it deploys
+the package in Zarf connected mode. For a Zarf-initialized cluster, use `task package:deploy`
 instead. That task uses `values/values.yaml` by default. Supply a deployment
 values file with `VALUES_FILE`, and set both `namespace` and `domain` in that
 file. Create that namespace before deployment.

@@ -1,6 +1,7 @@
 # Implementation status
 
-Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator tested.
+Date: 2026-10-11. Gate: M2 policy, identity, bindings and
+`mediamtx-operator` tested.
 The MediaMTX server is packaged. Stream provisioning and public API authorization
 still need Core's effective Role projection and integration code.
 M3 has not started.
@@ -10,8 +11,9 @@ M3 has not started.
 Date: 2026-10-11. Traefik ends User mutual Transport Layer Security (mTLS)
 for the public REST API. It sends a verified User universally unique identifier
 (UUID) in a trusted header. The integration does not read User certificate
-records. It will issue passwords for MediaMTX streams. The deployed operator
-creates human UserBindings only. TAKServer connection work remains deferred.
+records. It will issue passwords for MediaMTX streams. The deployed
+`mediamtx-operator` creates human UserBindings only. TAKServer connection work
+remains deferred.
 
 ## MediaMTX package checkpoint
 
@@ -46,11 +48,11 @@ unauthenticated HLS request returned 401. The server log listed the RTSPS,
 RTMPS, HLS, WebRTC, SRT, and MoQ listeners. A local connection to the
 control API port 9997 was refused. Zarf installed the ingress
 NetworkPolicies, but Kind uses `kindnet`, which does not enforce them. The
-`package:deploy:local` task loads the operator image into Kind before a
+`package:deploy:local` task loads the `mediamtx-operator` image into Kind before a
 connected deployment. A second deployment upgraded the package and kept both
 Deployments ready. The task refused a different Kubernetes context.
-The packaged operator created a UserBinding for a disposable User. It pinned
-the User identifier and set `Synced=False`. Both test objects were removed.
+The packaged `mediamtx-operator` created a UserBinding for a disposable User.
+It pinned the User identifier and set `Synced=False`. Both test objects were removed.
 
 ## Grant retirement and retention checkpoint
 
@@ -78,8 +80,8 @@ client and did not test MediaMTX session removal.
 
 ## Effective Role ownership and live User watch
 
-Date: 2026-10-11. Core will project effective Role and Group membership into
-each User object. Core does not decide MediaMTX permissions. This integration
+Date: 2026-10-11. The planned `core-operator` will project effective Role and
+Group membership into each User object. Core does not decide MediaMTX permissions. This integration
 defines `mediamtx-user` as read-all and publish-own, and reserves
 `mediamtx-share` for a later sharing route. The global `superadmin` Role grants
 all media access and restricted control actions. The
@@ -89,14 +91,15 @@ effective Role, resolution, and freshness data.
 The policy module now exposes `grant_remains_authorized()` so later User
 reconciliation can identify sessions that must end. A stale projection also
 denies admission, but it does not prove permanent Role loss. The production
-operator does not yet consume a Core effective Role projection or drain grants.
+`mediamtx-operator` does not yet consume a Core effective Role projection or
+drain grants.
 `task check` passed Ruff, strict Pyrefly, and 233 tests.
 
-On the shared `kind-opendefence-dev` cluster, a local operator created a
+On the shared `kind-opendefence-dev` cluster, a local `mediamtx-operator` created a
 UserBinding for disposable User `mtxprobea11` in disposable namespace
-`mtxprobe-20261011`. A status-only User update caused the operator to clear a
-temporary `Synced=True` fixture. No Core controller was running, so the probe
-patched User status directly. Both fixture resources and the local operator
+`mtxprobe-20261011`. A status-only User update caused `mediamtx-operator` to
+clear a temporary `Synced=True` fixture. No `core-operator` was running, so the probe
+patched User status directly. Both fixture resources and the local `mediamtx-operator`
 were removed. This proves watch delivery and binding reconciliation, not Role
 inheritance or media authorization.
 
@@ -106,8 +109,8 @@ Date: 2026-10-11. Added an internal Secret-backed record for each reserved
 media grant. Atomic create returns the stored winning password on concurrent
 retries. Reads validate ownership and the full grant. Revocation uses Secret
 UID and resource-version guards and persists a denial before later session
-cleanup. The adapter is not connected to the public API or operator. The
-operator still has no Secret permission. See [grant records](m2-grants.md).
+cleanup. The adapter is not connected to the public API or `mediamtx-operator`.
+`mediamtx-operator` still has no Secret permission. See [grant records](m2-grants.md).
 
 `task check` passed Ruff, strict Pyrefly, and 232 tests. The live MediaMTX
 callback was not rerun. No user credential is issued in production.
@@ -115,9 +118,9 @@ callback was not rerun. No user credential is issued in production.
 ## Core User projection decision
 
 Date: 2026-10-11. Core will reconcile effective Role and Group changes into
-each User object. This operator already watches Users and maps their events to
+each User object. `mediamtx-operator` already watches Users and maps their events to
 UID-pinned bindings. The current Core User model lists only direct Roles, so
-the running operator still reports `Synced=False` and cannot authorize public
+the running `mediamtx-operator` still reports `Synced=False` and cannot authorize public
 access. The [Core handoff](core-media-policy-handoff.md) asks for a versioned,
 bounded-freshness User status projection, not a media permission endpoint.
 
@@ -138,9 +141,9 @@ passed. The live MediaMTX protocol spike was not rerun with callsign paths.
 
 The user also set the control-action rule: only a current `superadmin` or this
 integration's own service identity may use MediaMTX `api`, `metrics`, or `pprof`.
-Ordinary media grants stay unable to use those actions. The operator has no
+Ordinary media grants stay unable to use those actions. `mediamtx-operator` has no
 production control-credential issuer or user control route yet. Its network
-policy currently limits the private control port to the operator Pod.
+policy currently limits the private control port to the `mediamtx-operator` Pod.
 
 ## Grant reservation checkpoint
 
@@ -152,10 +155,10 @@ reactivating a finished key. The unit tests cover concurrent equal requests,
 quota, changed requests, expiry, ownership and update conflicts.
 
 `task check` passed Ruff, strict Pyrefly and 223 tests. Grant Secret records,
-garbage collection and issuance remain unimplemented. The operator has no
+garbage collection and issuance remain unimplemented. `mediamtx-operator` has no
 Secret permissions. See [grant reservations](m2-reservations.md).
 
-## Packaged operator deployment checkpoint
+## Packaged `mediamtx-operator` deployment checkpoint
 
 Date: 2026-10-11. The local-dev Zarf overlay was deployed to an isolated Kind
 cluster with the current Core resource definitions. The first Pod could not start because
@@ -165,9 +168,9 @@ The corrected Deployment rolled out with one available replica.
 
 The deployed ServiceAccount could read Core Users, create UserBindings and patch
 their status. Kubernetes denied Secret reads, binding deletion and binding
-creation in another namespace. A fixture User caused the operator to create one
-UserBinding pinned to that User's identifier, with `Synced=False`. The owned cluster and its kubeconfig
-were removed. The three sibling Kind clusters remained present.
+creation in another namespace. A fixture User caused `mediamtx-operator` to create one
+UserBinding pinned to that User's identifier, with `Synced=False`. The owned
+cluster and its kubeconfig were removed. The three sibling Kind clusters remained present.
 
 `task check` passed Ruff, strict Pyrefly and 216 tests. `task package:check`
 passed Zarf lint and both overlay renders. The ARM64 Zarf archive was rebuilt
@@ -179,8 +182,8 @@ enforcement or MediaMTX provisioning.
 Date: 2026-10-11. The Zarf package now includes namespaced ingress
 `NetworkPolicy` rules in both production and local-dev overlays. They select
 future MediaMTX Pods for HLS, WebRTC signaling and ICE, RTSPS, RTMPS and SRT
-ports from Traefik, and allow the operator to reach the private control port.
-The operator policy has no ingress allow rules. The package still has no
+ports from Traefik, and allow `mediamtx-operator` to reach the private control port.
+The `mediamtx-operator` policy has no ingress allow rules. The package still has no
 MediaMTX Service or workload; base has no native streaming entrypoints.
 Live policy enforcement and external client reachability have not been verified.
 Zarf lint and both overlay renders passed. The ARM64 package archive was
@@ -195,22 +198,22 @@ for one grant username and kicks matching HLS, RTSPS, RTMPS, SRT or WebRTC
 connections. It repeats scans and reports incomplete cleanup on API errors or
 sessions that persist. `task check` passed Ruff, strict Pyrefly and 215 tests.
 See [session removal](m2-sessions.md). The adapter is not yet wired to persisted
-grant revocation or the operator, so no production cleanup guarantee is claimed.
+grant revocation or `mediamtx-operator`, so no production cleanup guarantee is claimed.
 
 ## Zarf package checkpoint
 
 Date: 2026-10-11. Implementation commit: `34cc9658ece04f768d612700c990fa93d3b95c5a`.
 Following sibling Core's overlay names, `values/values.yaml` supplies the
 production namespace and `values/local-dev.yaml` selects the development
-namespace. `zarf.yaml` packages the current binding observation operator image,
+namespace. `zarf.yaml` packages the current `mediamtx-operator` image,
 namespace RBAC and Deployment. Its only application setting,
 `CLOUDCOIL_NAMESPACE`, comes from the Pod namespace; the package `namespace`
 value controls the manifest. The package does not own a Namespace or Core CRDs.
 
 `task package:check` passed Zarf 0.87.0 lint and manifest inspection for both
 overlays. Schema validation rejected an invalid namespace. Podman built the
-ARM64, non-root operator image; Zarf created and inspected the image-bearing
-package archive. The image entry point ran in a read-only container.
+ARM64, non-root `mediamtx-operator` image. Zarf created and inspected the
+image-bearing package archive. The image entry point ran in a read-only container.
 `task check` passed Ruff, strict Pyrefly and 201 tests; `task build` produced
 both Python distributions. All applicable pre-commit hooks passed. The package
 was not deployed to a cluster, and AMD64 and hosted CI builds were not run.
@@ -224,7 +227,7 @@ The user expanded the checks in `47f892e`; `4a1d8b4` fixes the resulting failure
 The package rename is in `5200799`.
 The Task migration and original-document relocation are in `17a8da1`.
 Pinned remote base tasks are in `7f2b21a`.
-The binding operator and isolated probe network fix are in `a19793c`.
+The `mediamtx-operator` and isolated probe network fix are in `a19793c`.
 The shared Core model dependency is in `faf76f5`.
 The original M1 checkpoint remains in `eff771f`.
 This checkpoint is a separate documentation commit after that implementation.
@@ -245,7 +248,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Created and tested an isolated, digest-pinned Kind workflow with Podman.
 - Recorded the user's TAK deferral in the plan, draft contract and decision record.
 - Located and read the working Core architecture handoff and API draft. Compared
-  the actual Core operator prototype with the proposed ownership model. Recorded
+  the actual `core-operator` prototype with the proposed ownership model. Recorded
   unresolved wire contracts instead of inventing Core fields or headers.
 - Defined integration identity and policy semantics, bounded grant storage,
   quota reservations, idempotency and cleanup ordering in
@@ -256,7 +259,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   callback outage, certificate pinning and the broken HTTP prefix redirect.
   See [findings](m1-findings.md) and the [result record](m1-results.json).
 - Updated OpenAPI design gates and its secure-protocol mapping description.
-  No public API or operator was added at that checkpoint.
+  No public API or `mediamtx-operator` was added at that checkpoint.
 - Implemented canonical UUID normalization, compact media paths and versioned
   stream IDs. Reject path aliases and complete-segment ownership failures.
 - Added immutable grant and effective-policy models, callback normalization and
@@ -285,7 +288,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   release 0.8.0, as selected in the user's checks commit. Read Core's scaffold at
   `af0375a41aad095ce464ba588544930d0a486793`; no media-policy wire contract exists
   at that revision. See [M2 bindings](m2-bindings.md).
-- Added the [binding operator](m2-operator.md) with Cloudcoil's Application,
+- Added [`mediamtx-operator`](m2-operator.md) with Cloudcoil's Application,
   scoped controller watches, retry queue, CLI and transport lifecycle. It watches
   Core Users read-only and owned bindings in one namespace. Fresh User reads
   precede atomic creation; owned status writes only report incomplete provisioning.
@@ -299,7 +302,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   uses Nexus pypilocal explicitly. Core's typed User model requires lowercase
   callsigns; fixtures now use names that match that contract. Ownership and
   UID/resource-version status guards remain in the integration adapter.
-- Cloudcoil recognizes the shared UserBinding class as a CRD source. The operator
+- Cloudcoil recognizes the shared UserBinding class as a CRD source. `mediamtx-operator`
   omits that Core-owned CRD from generated manifests and installation while
   keeping its namespace RBAC and runtime watch. The original local schema classes
   and four type-check suppressions were removed.
@@ -442,7 +445,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   overrides, CI/tool version agreement and cache handling. Cluster lifecycle
   commands and hosted CI were not run. No package publication is claimed.
   The sibling base checkout and isolated probe lifecycle tasks were not changed.
-- Live binding operator probe with registry Cloudcoil 0.8.0: passed. Startup
+- Live `mediamtx-operator` probe with registry Cloudcoil 0.8.0: passed. Startup
   replay created missing bindings; deleting a binding recreated it with a new UID.
   Recreating a User created a separate pinned binding. Owned observations stayed
   pending, former orphan readiness was cleared, an unrelated binding's resource
@@ -452,20 +455,20 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Probe fixtures, namespace, User and installed Core CRDs were removed. The owned
   cluster `mediamtx-5695ccafbf64` and its explicit kubeconfig were removed.
   Sibling clusters `opendefence-dev` and `tak-server-t0` remained present.
-  Live operator RBAC enforcement, image deployment and diagnostics were not tested;
-  the probe used its explicit fixture Config with diagnostics disabled.
+  Live `mediamtx-operator` RBAC enforcement, image deployment and diagnostics
+  were not tested. The probe used its explicit fixture Config with diagnostics disabled.
 - Live setup exposed imported base Task environment selecting the isolated Kind
   network. The probe script now unsets inherited Docker/Podman network settings.
   A regression test verifies isolation. Removed the initial probe cluster, then
-  recreated it with the corrected settings before running operator assertions.
+  recreated it with the corrected settings before running `mediamtx-operator` assertions.
 - Offline CLI manifest generation passed with an intentionally absent kubeconfig.
   Manifest tests verify read-only Core permissions, namespace-scoped bindings and
   no Secret/deletion/CRD privileges. Both package builds passed, and the wheel's
-  console entry point resolves to the operator. All applicable prek hooks passed.
+  console entry point resolves to `mediamtx-operator`. All applicable prek hooks passed.
 - Added only four independently verified public source hashes from the new result
   record to the secret baseline; the eight historical entries remain unchanged.
   No file exclusion or detector was relaxed.
-- Ponytail review before the operator commit: ship this binding observation slice.
+- Ponytail review before the `mediamtx-operator` commit: ship this binding observation slice.
   Checked fresh-read boundaries, UID and namespace guards, negative-only status,
   restart and conflict handling, mapped watches, generated RBAC, console packaging,
   transport ownership, fixture cleanup and existing adapter callers. No unresolved
@@ -474,7 +477,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   Pyrefly (zero errors). `task build` built both distributions. Offline CLI
   manifest generation passed without a kubeconfig and emitted no Core CRD.
   All applicable pre-commit hooks passed.
-- The owned Kind probe passed the original binding and running-operator assertions
+- The owned Kind probe passed the original binding and running `mediamtx-operator` assertions
   against Cloudcoil 0.8.0, `lib-opendefence-core` 0.2.1+261010 and the current
   sibling Core CRDs at `6fd602383616947b8e29e4ee12be61fab3d2443c`
   (file SHA-256 `fb2d59fa58e562a1c20c46cc590458e15d249e1f94b777a14b91eecc15c5b79a`).
@@ -525,7 +528,7 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   is not a full offline-install test. No application runtime image was built.
 - M2 reused the exact ARM64 images and tool versions above. The callback mounted
   the checked-in package modules; their measured hashes are in `m2-results.json`.
-  Package source was tested without an API/operator runtime image.
+  Package source was tested without a public API or `mediamtx-operator` runtime image.
 
 ## Skills and model evidence
 
@@ -556,9 +559,9 @@ below. Before a later transition to M3, follow plan section 13 and confirm
 
 Canonical IDs and paths, exact grant scope, fresh-policy semantics and the
 audited regressions are implemented. The semantic fixtures do not prove that
-Core supplies this projection. The shared-CRD binding adapter and running binding
-operator now pass unit and live checks with registry Cloudcoil 0.8.0. The original
-adapter result retains its reviewed Git dependency identity. There is no local
+Core supplies this projection. The shared-CRD binding adapter and running
+`mediamtx-operator` now pass unit and live checks with registry Cloudcoil 0.8.0.
+The original adapter result retains its reviewed Git dependency identity. There is no local
 inheritance algorithm or user database.
 
 Binding ownership/schema and the integration's injected-header responsibility
@@ -576,15 +579,15 @@ issuance still needs the Core projection, the public API, and MediaMTX control
 access. Sharing is reserved for a later route.
 
 HTTP prefix routing needs a base-approved response rewrite or another agreed
-route contract. Strict deadline enforcement during callback, operator or control
-outage has no accepted mechanism. Keep the strict-outage capability false.
+route contract. Strict deadline enforcement during callback, `mediamtx-operator`
+or control outage has no accepted mechanism. Keep the strict-outage capability false.
 The 15-second freshness and 30-second removal targets are not measured guarantees.
 
 TAK-specific support stays deferred until the sibling TAK tasks are complete.
 This includes TAK video XML and cross-repository integration. Existing TAK names
 in the draft API do not advertise runtime support.
 
-The binding observation operator and a deny-by-default MediaMTX server are
+`mediamtx-operator` and a deny-by-default MediaMTX server are
 deployed locally. Stream provisioning and the public API are not implemented.
 Bindings stay `Synced=False` while those dependencies remain open. Core policy
 provenance, real RTMPS, SRT, WebRTC/ICE and MoQ clients, Core policy and

@@ -2,7 +2,7 @@
 
 Date: 2026-10-10. This slice consumes the user's supplied CRD and authentication
 boundary. This checkpoint implemented adapters; the subsequent
-[binding operator](m2-operator.md) runs their observations. The public API remains pending.
+[`mediamtx-operator`](m2-operator.md) runs their observations. The public API remains pending.
 
 Core owns user mTLS authentication and any ForwardAuth configuration. The
 integration consumes one injected header through `user_id_from_headers` in
@@ -40,10 +40,10 @@ The adapter provides resource operations:
   other conditions and changes the transition timestamp only when the condition
   status changes. An unchanged observation makes no request. Conflicts propagate
   so the caller must read and reconcile again.
-- The operator adds `set_binding_pending`, which only clears readiness on owned
+- `mediamtx-operator` adds `set_binding_pending`, which only clears readiness on owned
   bindings. It can invalidate an orphaned binding without requiring a current
   User. Positive readiness still requires a matching current User and a caller's
-  completed provisioning result; the running operator does not report it.
+  completed provisioning result; the running `mediamtx-operator` does not report it.
 
 The shared User model validates Core's typed spec and status, including the
 lowercase callsign pattern. The adapter reads identity from metadata and
@@ -51,7 +51,7 @@ does not resolve roles or groups. Callers must fetch the current User; a stored
 snapshot is not policy freshness evidence. No grants or credentials are created
 by these binding operations. They do not set owner references: cleanup must deny
 grants and drain sessions before deletion, rather than relying on automatic
-garbage collection. That lifecycle remains operator work.
+garbage collection. That lifecycle remains `mediamtx-operator` work.
 The caller owns the resource client's transport lifetime. Cloudcoil's Config
 context does not close HTTP transports; the probe explicitly closes both clients.
 
@@ -74,7 +74,7 @@ The preceding four suppressions describe the original local models. The shared
 models remove those local declarations and suppressions. The adapter still checks
 binding ownership, canonical UIDs, unique conditions and aware transition times
 before writes. Core owns the shared CRDs; Cloudcoil's automatic CRD entry for the
-shared UserBinding model is omitted from this operator's generated manifests.
+shared UserBinding model is omitted from `mediamtx-operator` generated manifests.
 
 ## Verification
 
@@ -116,5 +116,5 @@ CRDs or the inspected Core scaffold. Production media authorization still needs
 that Core data and this integration's Role mapping. The existing pure policy
 function remains fail-closed on absent or stale input. Ingress, production
 RBAC, grant persistence, and the public API are not validated by this adapter
-probe. The separate operator probe uses
+probe. The separate `mediamtx-operator` probe uses
 `--operator`. TAK remains deferred.

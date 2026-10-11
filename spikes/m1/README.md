@@ -1,6 +1,6 @@
 # Media protocol spike
 
-This is a disposable integration test, not the API, operator or Core adapter.
+This is a disposable integration test, not the public API, mediamtx-operator or Core adapter.
 It uses standard-library Python and three digest-pinned ARM64 images from
 `images.json`. The MediaMTX image also contains FFmpeg. Traefik is a test
 candidate; it is not a base-approved production selection.

@@ -1,4 +1,4 @@
-"""Render the operator overlay from Cloudcoil's runtime RBAC and controllers."""
+"""Render the mediamtx-operator overlay from Cloudcoil's runtime RBAC and controllers."""
 
 import argparse
 import tomllib

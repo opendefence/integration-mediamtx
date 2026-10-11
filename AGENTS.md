@@ -9,6 +9,10 @@ Read [README.md](README.md) and [implementation status](docs/implementation-stat
 - Write new and changed documentation in Simplified Technical English (STE).
   Use short, active sentences. Use one term for each concept.
   Define abbreviations when they first appear. Avoid idioms and unclear pronouns.
+- Name each operator when you refer to it. Use `core-operator`,
+  `tak-operator`, or `mediamtx-operator` as applicable. Do not use
+  "the operator" when the name is known. Apply this rule to code comments,
+  documentation, handoffs, and progress reports.
 
 Run `task check` after code changes.
 Run `task package:check` after Zarf package or overlay changes.

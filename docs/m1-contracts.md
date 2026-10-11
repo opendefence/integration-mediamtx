@@ -14,7 +14,7 @@ This update replaces the UUID-based media path and permission assumptions below.
 User and grant identity still use the immutable Core User UID.
 Only current `superadmin` Users and this integration's own service identity may
 use MediaMTX `api`, `metrics`, or `pprof`. Ordinary media grants cannot use them.
-Core's operator will project effective Roles and Groups into the User after
+The planned `core-operator` will project effective Roles and Groups into the User after
 Role, Group, and assignment changes. This integration already watches User
 events. The effective Role schema and bounded freshness fields are pending.
 
@@ -27,7 +27,7 @@ It leaves the Integration Manifest, policy freshness and identity recovery open.
 The M2 clarification below supplies binding ownership and the identity-header boundary. The accompanying
 API handoff is `3.0.0-draft.6`; it does not supply a versioned media-policy feed.
 
-The local Core operator prototype was read at
+The local `core-operator` prototype was read at
 `5278b09e9776020b48ccba17f51d7d93e4378d2c`. Its
 `src/rmk8soperator/models/v1alpha1/userbinding.py` lets integrations create
 namespaced bindings with `spec.userRef.name`. Its status has shared conditions,
@@ -76,7 +76,7 @@ The production adapter must settle clock tolerance and freshness with Core.
 Keep the plan's 15-second freshness and 30-second removal targets as unverified
 acceptance targets.
 
-The integration operator is the sole integration-status writer. The API writes
+`mediamtx-operator` is the sole integration-status writer. The API writes
 grant intent to Secrets. Core supplies effective Roles; this integration
 decides access and assignment from them. Readiness must match the binding
 generation, Role projection revision, and current MediaMTX instance and
@@ -146,7 +146,7 @@ after their original grant expiry; a delayed creator must recheck that expiry
 before creating a credential. Do not release a live reservation by a short
 timeout. This is credential bookkeeping, not a duplicate user database.
 
-Persist denial before draining sessions. The operator scans every relevant
+Persist denial before draining sessions. `mediamtx-operator` scans every relevant
 session-list page on each MediaMTX instance and matches the grant username.
 Treat an absent session as successful removal; repeat the scan to catch admission
 races. Rebuild observations after restart. Keep cleanup incomplete on dependency

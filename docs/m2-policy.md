@@ -1,7 +1,7 @@
 # M2 policy implementation
 
 Date: 2026-10-10. This completes the independent policy slice of M2. The public
-API, operator and Core adapter still depend on the [M1 contracts](m1-contracts.md).
+API, `mediamtx-operator` and Core adapter still depend on the [M1 contracts](m1-contracts.md).
 No runtime dependency, user database, credential issuer or TAK profile was added
 by this policy slice. The subsequent [binding adapter](m2-bindings.md) consumes
 the supplied CRD and Core-injected UUID header and adds pinned Cloudcoil.

@@ -2,9 +2,10 @@
 
 Date: 2026-10-10. Gate: M0.
 
-Use one Python 3.14 package, `opendefence_integration_mediamtx`, for the future API and
-operator. Run those processes and MediaMTX in separate Pods. Core owns identity
-and effective permissions. The operator writes integration binding status.
+Use one Python 3.14 package, `opendefence_integration_mediamtx`, for the future
+API and `mediamtx-operator`. Run those processes and MediaMTX in separate Pods.
+Core owns identity and effective permissions. `mediamtx-operator` writes
+integration binding status.
 Namespace Secrets hold credentials. Do not add a user database or sidecars.
 
 Use the development settings from TAK prototype revision

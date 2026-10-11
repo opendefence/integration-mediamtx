@@ -17,7 +17,7 @@ The current User model has no complete effective Role set or bounded freshness
 rule. The integration cannot treat direct Role references as the complete
 access decision. It cannot safely issue public media credentials, admit live
 MediaMTX connections, or mark media provisioning complete from those fields.
-Its running operator keeps `UserBinding.status` at `Synced=False`.
+The running `mediamtx-operator` keeps `UserBinding.status` at `Synced=False`.
 
 A UserBinding is an integration-owned provisioning observation. Its existence
 or `Synced=True` condition does not assign a Role. Core can report
@@ -80,7 +80,7 @@ schema. Core does not need to run the integration's path or grant logic.
 
 ## Update delivery and freshness
 
-Core's operator will update the User when relevant Role, Group, or account
+The planned `core-operator` will update the User when relevant Role, Group, or account
 inputs change. The integration watches cluster-scoped Users and maps each
 event to the User's UID-pinned binding. Startup listing and periodic
 reconciliation also queue work. The integration does not need to watch Roles

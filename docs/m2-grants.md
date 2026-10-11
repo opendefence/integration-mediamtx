@@ -47,7 +47,7 @@ The unit tests cover concurrent creation, User-scoped listing, a changed
 request, invalid stored data, guarded revocation, conflict retry, and retry
 after revocation. They also cover cleanup failure and retry across two
 MediaMTX instances and restart after a partial retained-record deletion. The
-operator still has no Secret permission. There is no production credential
+`mediamtx-operator` still has no Secret permission. There is no production credential
 issuer, HTTP callback, instance discovery, or scheduled cleanup loop. Core's
 effective Role projection is still required before this adapter can serve
 public access.
