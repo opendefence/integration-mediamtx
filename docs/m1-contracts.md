@@ -153,13 +153,15 @@ races. Rebuild observations after restart. Keep cleanup incomplete on dependency
 failure. Grant status must distinguish denial from completed removal.
 
 Keep a tombstone until session removal is confirmed and both the original grant
-expiry and retry window have passed. Keep denied credentials or the equivalent
-revocation record readable until cleanup completes. Delete the grant record
-before releasing its quota reservation, with preconditions on both operations.
-An interrupted cleanup may temporarily consume quota; it must never restore
-access. Stop new issuance when retained records fill the bound. Do not discard
-unresolved revocations to make space. Explicitly reconcile cross-namespace
-cleanup; do not use invalid owner references.
+expiry and retry window have passed. Keep the revoked grant record readable
+while cleanup is pending. After confirmed session removal, mark the reservation
+complete to release active quota. Retain the revoked grant record and the
+reservation entry for retries. Delete them only after the retention window,
+with UID and resource-version guards. An interrupted cleanup may temporarily
+consume quota; it must never restore access. Stop new issuance when retained
+records fill the bound. Do not discard unresolved revocations to make space.
+Explicitly reconcile cross-namespace cleanup; do not use invalid owner
+references.
 
 These storage rules require concurrent-create, conflict, restart and cleanup
 tests in M2. The spike does not prove them. Kubernetes RBAC must exclude writers

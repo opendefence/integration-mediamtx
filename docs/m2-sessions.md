@@ -16,8 +16,9 @@ scans before reporting completion. API failures, malformed data, excessive pages
 sessions that do not drain remain errors; the caller must keep cleanup pending.
 The return value counts kick attempts, including sessions already absent.
 
-This is a control API adapter, not revocation orchestration. Grant denial storage,
-instance discovery, retries after restart and the public API are still pending.
+The [grant retirement adapter](m2-grants.md) persists denial before it calls
+this session adapter. Instance discovery, retries after restart and the public
+API are still pending.
 No MediaMTX control credentials or routes are exposed by the Zarf package yet.
 The adapter does not prove a strict deadline when MediaMTX or its control API is
 unavailable. TAK support remains deferred.

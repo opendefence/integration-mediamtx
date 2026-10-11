@@ -20,6 +20,7 @@ from opendefence_integration_mediamtx.bindings import MANAGED_BY
 MAX_ACTIVE = 8
 MAX_RETAINED = 64
 MAX_LIFETIME = timedelta(hours=24)
+RETRY_WINDOW = timedelta(hours=24)
 _RETRIES = 16
 _DATA_KEY = "reservations.json"
 
@@ -225,3 +226,57 @@ async def mark_cleanup_complete(
         except ResourceConflict:
             continue
     raise RuntimeError("Grant reservation cleanup did not converge")
+
+
+async def list_reservations_for_subject(client: AsyncAPIClient[Secret], subject_id: UUID) -> list[Reservation]:
+    """Read the bounded ledger so cleanup can resume after a restart."""
+    namespace = _namespace(client, subject_id)
+    try:
+        secret = await client.get(f"mediamtx-reservations-{subject_id.hex}", namespace=namespace)
+    except ResourceNotFound:
+        return []
+    return list(_read(secret, subject_id, namespace).entries.values())
+
+
+async def _remove_retained_reservation(
+    client: AsyncAPIClient[Secret], subject_id: UUID, key_digest: str, grant_id: str, *, now: datetime
+) -> bool:
+    """Remove a completed entry after its grant Secret is gone and retention ends."""
+    namespace = _namespace(client, subject_id)
+    if (
+        not isinstance(key_digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", key_digest)
+        or not isinstance(grant_id, str)
+        or not re.fullmatch(r"g_[A-Za-z0-9_-]{22}", grant_id)
+        or not isinstance(now, datetime)
+        or now.utcoffset() is None
+    ):
+        raise ValueError("Invalid retained reservation scope")
+    name = f"mediamtx-reservations-{subject_id.hex}"
+    for _ in range(_RETRIES):
+        try:
+            secret = await client.get(name, namespace=namespace)
+        except ResourceNotFound:
+            return False
+        ledger = _read(secret, subject_id, namespace)
+        existing = ledger.entries.get(key_digest)
+        if existing is None:
+            return False
+        if (
+            existing.grant_id != grant_id
+            or not existing.cleanup_complete
+            or now < existing.expires_at
+            or now < existing.created_at + RETRY_WINDOW
+        ):
+            raise ValueError("Reservation is not ready for removal")
+        updated = ledger.model_copy(
+            update={"entries": {key: item for key, item in ledger.entries.items() if key != key_digest}}
+        )
+        desired = secret.model_copy(deep=True)
+        desired.data = {_DATA_KEY: _encode(updated)}
+        try:
+            await client.patch(secret, diff(secret, desired))
+            return True
+        except ResourceConflict:
+            continue
+    raise RuntimeError("Retained reservation removal did not converge")

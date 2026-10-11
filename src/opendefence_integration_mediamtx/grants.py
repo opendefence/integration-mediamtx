@@ -4,12 +4,14 @@ import base64
 import binascii
 import hashlib
 import re
+from collections.abc import Iterable
 from datetime import datetime
 from uuid import UUID
 
+import httpx
 from cloudcoil.apimachinery import ObjectMeta
 from cloudcoil.client import AsyncAPIClient
-from cloudcoil.errors import ResourceConflict
+from cloudcoil.errors import ResourceConflict, ResourceNotFound
 from cloudcoil.models.kubernetes.core.v1 import Secret
 from cloudcoil.patches import diff
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -17,7 +19,15 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationErro
 from opendefence_integration_mediamtx.bindings import MANAGED_BY
 from opendefence_integration_mediamtx.paths import parse_path
 from opendefence_integration_mediamtx.policy import MediaGrant
-from opendefence_integration_mediamtx.reservations import Reservation, _namespace
+from opendefence_integration_mediamtx.reservations import (
+    RETRY_WINDOW,
+    Reservation,
+    _namespace,
+    _remove_retained_reservation,
+    list_reservations_for_subject,
+    mark_cleanup_complete,
+)
+from opendefence_integration_mediamtx.sessions import drain_grant_sessions
 
 _DATA_KEY = "grant.json"
 _SUBJECT_LABEL = "mediamtx.opendefence.fi/subject-uid"
@@ -205,3 +215,73 @@ async def revoke_grant(
         except ResourceConflict:
             continue
     raise RuntimeError("Grant revocation did not converge")
+
+
+async def retire_grant(
+    client: AsyncAPIClient[Secret],
+    subject_id: UUID,
+    grant_id: str,
+    media_clients: Iterable[httpx.AsyncClient],
+    *,
+    now: datetime,
+) -> GrantRecord:
+    """Persist denial and drain; caller must supply every active MediaMTX instance."""
+    instances = tuple(media_clients)
+    if not instances:
+        raise ValueError("At least one MediaMTX instance is required")
+    record = await revoke_grant(client, subject_id, grant_id, now=now)
+    for media in instances:
+        await drain_grant_sessions(media, record.id, protocols=record.protocols)
+    await mark_cleanup_complete(client, subject_id, record.key_digest, record.id)
+    return record
+
+
+async def prune_retired_grants(client: AsyncAPIClient[Secret], subject_id: UUID, *, now: datetime) -> int:
+    """Remove retained records after expiry and the retry window, with guarded writes."""
+    namespace = _namespace(client, subject_id)
+    if not isinstance(now, datetime) or now.utcoffset() is None:
+        raise ValueError("Invalid cleanup time")
+    removed = 0
+    for reservation in await list_reservations_for_subject(client, subject_id):
+        if (
+            not reservation.cleanup_complete
+            or now < reservation.expires_at
+            or now < reservation.created_at + RETRY_WINDOW
+        ):
+            continue
+        name = _name(reservation.grant_id)
+        try:
+            secret = await client.get(name, namespace=namespace)
+        except ResourceNotFound:
+            pass  # A previous attempt may have deleted the grant before it stopped.
+        else:
+            record = _read(secret, namespace, reservation.grant_id)
+            if (
+                record.subject_id != subject_id
+                or record.key_digest != reservation.key_digest
+                or record.request_digest != reservation.request_digest
+                or record.created_at != reservation.created_at
+                or record.expires_at != reservation.expires_at
+                or record.revoked_at is None
+            ):
+                raise ValueError("Grant does not match the completed reservation")
+            assert secret.metadata
+            try:
+                await client.delete(
+                    name,
+                    namespace=namespace,
+                    uid=secret.metadata.uid,
+                    resource_version=secret.metadata.resource_version,
+                )
+            except ResourceNotFound:
+                pass
+            try:
+                await client.get(name, namespace=namespace)
+            except ResourceNotFound:
+                pass
+            else:
+                raise RuntimeError("Grant Secret deletion did not complete")
+        removed += await _remove_retained_reservation(
+            client, subject_id, reservation.key_digest, reservation.grant_id, now=now
+        )
+    return removed

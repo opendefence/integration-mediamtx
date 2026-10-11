@@ -11,17 +11,20 @@ from uuid import UUID
 import httpx
 import pytest
 from cloudcoil.client import AsyncAPIClient
+from cloudcoil.errors import APIError
 from cloudcoil.models.kubernetes.core.v1 import Secret
 
 from opendefence_integration_mediamtx.grants import (
     create_grant_record,
     list_grants_for_subject,
     load_grant,
+    prune_retired_grants,
+    retire_grant,
     revoke_grant,
 )
 from opendefence_integration_mediamtx.paths import StreamPath
 from opendefence_integration_mediamtx.policy import MediaGrant
-from opendefence_integration_mediamtx.reservations import Reservation
+from opendefence_integration_mediamtx.reservations import Reservation, mark_cleanup_complete, reserve_grant
 
 SUBJECT = UUID(int=1)
 BINDING = UUID(int=2)
@@ -95,6 +98,59 @@ class Kubernetes:
         self.secret["data"]["grant.json"] = operations[2]["value"]
         self.secret["metadata"]["resourceVersion"] = str(self.patches + 1)
         return httpx.Response(200, json=self.secret)
+
+
+class LifecycleKubernetes:
+    def __init__(self, events: list[str]) -> None:
+        self.secrets: dict[str, dict[str, Any]] = {}
+        self.events = events
+        self.fail_ledger_patch_once = False
+
+    def respond(self, request: httpx.Request) -> httpx.Response:  # noqa: PLR0911 - Mock each Kubernetes method.
+        name = request.url.path.rsplit("/", 1)[-1]
+        if request.method == "GET":
+            secret = self.secrets.get(name)
+            return httpx.Response(200, json=secret) if secret else httpx.Response(404, json={"reason": "NotFound"})
+        if request.method == "POST":
+            secret = json.loads(request.content)
+            name = secret["metadata"]["name"]
+            if name in self.secrets:
+                return httpx.Response(409, json={"reason": "AlreadyExists"})
+            secret["metadata"].update(uid=str(UUID(int=len(self.secrets) + 3)), resourceVersion="1")
+            self.secrets[name] = secret
+            self.events.append(f"create:{name}")
+            return httpx.Response(201, json=secret)
+        if request.method == "DELETE":
+            secret = self.secrets.get(name)
+            if secret is None:
+                return httpx.Response(404, json={"reason": "NotFound"})
+            assert json.loads(request.content)["preconditions"] == {
+                "uid": secret["metadata"]["uid"],
+                "resourceVersion": secret["metadata"]["resourceVersion"],
+            }
+            del self.secrets[name]
+            self.events.append(f"delete:{name}")
+            return httpx.Response(200, json={"apiVersion": "v1", "kind": "Status", "status": "Success"})
+        assert request.method == "PATCH"
+        secret = self.secrets[name]
+        operations = json.loads(request.content)
+        assert operations[:2] == [
+            {"op": "test", "path": "/metadata/uid", "value": secret["metadata"]["uid"]},
+            {
+                "op": "test",
+                "path": "/metadata/resourceVersion",
+                "value": secret["metadata"]["resourceVersion"],
+            },
+        ]
+        assert len(operations) == 3 and operations[2]["op"] == "replace"
+        if name.startswith("mediamtx-reservations-") and self.fail_ledger_patch_once:
+            self.fail_ledger_patch_once = False
+            return httpx.Response(503, json={"reason": "ServiceUnavailable"})
+        data_key = operations[2]["path"].removeprefix("/data/")
+        secret["data"][data_key] = operations[2]["value"]
+        secret["metadata"]["resourceVersion"] = str(int(secret["metadata"]["resourceVersion"]) + 1)
+        self.events.append(f"patch:{name}")
+        return httpx.Response(200, json=secret)
 
 
 def client(http: httpx.AsyncClient, namespace: str = NAMESPACE) -> AsyncAPIClient[Secret]:
@@ -178,3 +234,116 @@ def test_revocation_is_guarded_and_never_reopens_a_grant() -> None:
 
     asyncio.run(run())
     assert kube.patches == 1
+
+
+def test_retirement_keeps_quota_pending_until_every_instance_drains() -> None:  # noqa: PLR0915 - One lifecycle.
+    events: list[str] = []
+    kube = LifecycleKubernetes(events)
+    session_id = str(UUID(int=9))
+    first_kicked = False
+    second_fails = True
+    grant_id = ""
+
+    def first_media(request: httpx.Request) -> httpx.Response:
+        nonlocal first_kicked
+        events.append(f"first:{request.method}")
+        if request.method == "POST":
+            first_kicked = True
+            return httpx.Response(404)
+        return httpx.Response(
+            200,
+            json={
+                "pageCount": 1,
+                "items": [] if first_kicked else [{"id": session_id, "user": grant_id}],
+            },
+        )
+
+    def second_media(request: httpx.Request) -> httpx.Response:
+        events.append(f"second:{request.method}")
+        if second_fails:
+            return httpx.Response(503)
+        return httpx.Response(200, json={"pageCount": 0, "items": []})
+
+    async def run() -> None:
+        nonlocal second_fails, grant_id
+        async with (
+            httpx.AsyncClient(base_url="https://kubernetes.test", transport=httpx.MockTransport(kube.respond)) as http,
+            httpx.AsyncClient(base_url="https://first.test", transport=httpx.MockTransport(first_media)) as first,
+            httpx.AsyncClient(base_url="https://second.test", transport=httpx.MockTransport(second_media)) as second,
+        ):
+            secrets = client(http)
+            reservation = await reserve_grant(
+                secrets, SUBJECT, "request-1", "b" * 64, now=NOW, expires_at=NOW + timedelta(hours=1)
+            )
+            grant = replace(GRANT, id=reservation.grant_id)
+            grant_id = grant.id
+            await create_grant_record(secrets, reservation, grant, now=NOW)
+            with pytest.raises(ValueError, match="instance"):
+                await retire_grant(secrets, SUBJECT, grant.id, (), now=NOW)
+            assert (await load_grant(secrets, grant.id)).revoked_at is None
+            with pytest.raises(httpx.HTTPStatusError):
+                await retire_grant(secrets, SUBJECT, grant.id, (first, second), now=NOW + timedelta(minutes=1))
+            assert (await load_grant(secrets, grant.id)).revoked_at == NOW + timedelta(minutes=1)
+            reservation_name = f"mediamtx-reservations-{SUBJECT.hex}"
+
+            def cleanup_complete() -> bool:
+                encoded = kube.secrets[reservation_name]["data"]["reservations.json"]
+                ledger = json.loads(base64.b64decode(encoded))
+                return bool(ledger["entries"][reservation.key_digest]["cleanup_complete"])
+
+            assert not cleanup_complete()
+            second_fails = False
+            retired = await retire_grant(secrets, SUBJECT, grant.id, (first, second), now=NOW + timedelta(minutes=2))
+            assert retired.revoked_at == NOW + timedelta(minutes=1)
+            assert cleanup_complete()
+            with pytest.raises(ValueError, match="no longer active"):
+                await reserve_grant(
+                    secrets,
+                    SUBJECT,
+                    "request-1",
+                    "b" * 64,
+                    now=NOW + timedelta(minutes=2),
+                    expires_at=NOW + timedelta(hours=1),
+                )
+            grant_name = next(name for name in kube.secrets if name.startswith("mediamtx-grant-"))
+            assert events.index(f"patch:{grant_name}") < events.index("first:GET")
+            assert events.index(f"patch:{reservation_name}") > events.index("second:GET")
+            assert await prune_retired_grants(secrets, SUBJECT, now=NOW + timedelta(hours=23)) == 0
+            kube.fail_ledger_patch_once = True
+            with pytest.raises(APIError):
+                await prune_retired_grants(secrets, SUBJECT, now=NOW + timedelta(hours=24))
+            assert grant_name not in kube.secrets and cleanup_complete()
+            assert await prune_retired_grants(secrets, SUBJECT, now=NOW + timedelta(hours=24)) == 1
+            ledger = json.loads(base64.b64decode(kube.secrets[reservation_name]["data"]["reservations.json"]))
+            assert ledger["entries"] == {}
+            renewed = await reserve_grant(
+                secrets,
+                SUBJECT,
+                "request-1",
+                "b" * 64,
+                now=NOW + timedelta(hours=24),
+                expires_at=NOW + timedelta(hours=25),
+            )
+            assert renewed.grant_id != grant.id
+
+    asyncio.run(run())
+
+
+def test_pruning_rejects_a_grant_without_persisted_revocation() -> None:
+    kube = LifecycleKubernetes([])
+
+    async def run() -> None:
+        async with httpx.AsyncClient(
+            base_url="https://kubernetes.test", transport=httpx.MockTransport(kube.respond)
+        ) as http:
+            secrets = client(http)
+            reservation = await reserve_grant(
+                secrets, SUBJECT, "request-1", "b" * 64, now=NOW, expires_at=NOW + timedelta(hours=1)
+            )
+            await create_grant_record(secrets, reservation, replace(GRANT, id=reservation.grant_id), now=NOW)
+            await mark_cleanup_complete(secrets, SUBJECT, reservation.key_digest, reservation.grant_id)
+            with pytest.raises(ValueError, match="completed reservation"):
+                await prune_retired_grants(secrets, SUBJECT, now=NOW + timedelta(hours=24))
+            assert (await load_grant(secrets, reservation.grant_id)).revoked_at is None
+
+    asyncio.run(run())

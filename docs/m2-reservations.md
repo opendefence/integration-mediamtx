@@ -18,10 +18,15 @@ sessions are removed. The caller supplies the stored key digest and grant
 identifier. It does not need the raw idempotency key after a restart.
 Completion releases active capacity but keeps the entry for retries.
 A failed Secret write leaves the previous state in place.
+The [grant retirement adapter](m2-grants.md) applies this order when its
+caller supplies every active MediaMTX instance.
+After grant expiry and the 24-hour idempotency retry window, the grant
+retention adapter deletes a completed, revoked grant record before it removes
+the ledger entry. An interrupted removal leaves the ledger entry for retry.
 
 This adapter does not issue credentials. The separate
-[grant record adapter](m2-grants.md) stores individual grant Secrets. Cleanup
-after the retry window and the public API still need implementation. The
+[grant record adapter](m2-grants.md) stores individual grant Secrets. A
+scheduled cleanup loop and the public API still need implementation. The
 operator has no Secret permissions yet. Do not use these adapters for
 production issuance until those parts and Core's effective Role projection are
 ready.

@@ -5,6 +5,30 @@ MediaMTX provisioning and public API authorization need Core's effective Role
 projection and the MediaMTX deployment.
 M3 has not started.
 
+## Grant retirement and retention checkpoint
+
+Date: 2026-10-11. Added an internal grant lifecycle operation. It stores
+revocation before it drains every supplied MediaMTX instance. It marks the
+reservation complete only after all drains succeed. A failed drain keeps the
+reservation active for a retry. The caller must supply every active instance.
+
+Completed, revoked records can be pruned after grant expiry and the 24-hour
+idempotency retry window. The adapter checks the grant against its reservation,
+deletes the grant Secret with UID and resource-version guards, confirms its
+absence, then removes the ledger entry with a guarded patch. A retry can finish
+after an interrupted deletion. No production loop calls these adapters yet.
+
+`task check` passed Ruff, strict Pyrefly, and 235 tests. The test uses mocked
+Kubernetes and MediaMTX APIs. It covers a failed second-instance drain,
+retry, retention boundary, interrupted ledger removal, and refusal to prune
+an unrevoked grant. No live MediaMTX or Core reconciler was used.
+
+A separate probe on `kind-opendefence-dev` used a disposable
+`mtxgrantprobe-20261011` namespace. The live Kubernetes API accepted grant and
+reservation Secret creation, guarded revocation, completion, and guarded
+deletion. The namespace was removed. The probe issued no media credential to a
+client and did not test MediaMTX session removal.
+
 ## Effective Role ownership and live User watch
 
 Date: 2026-10-11. Core will project effective Role and Group membership into

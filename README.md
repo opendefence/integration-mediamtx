@@ -98,8 +98,10 @@ The [M2 session adapter](docs/m2-sessions.md) can remove connections by grant
 username after denial is persisted; it is not connected to a public API yet.
 The [M2 reservation adapter](docs/m2-reservations.md) stores bounded grant
 reservations in Kubernetes Secrets. It is not connected to issuance yet.
-The [M2 grant record adapter](docs/m2-grants.md) stores a reserved media grant
-and persists revocation. It is not connected to issuance or the operator yet.
+The [M2 grant record adapter](docs/m2-grants.md) stores a reserved media grant,
+persists revocation, drains supplied MediaMTX instances before releasing active
+quota, and removes retained records after their retry window. It is not
+connected to issuance or the operator yet.
 
 ## Zarf package
 
