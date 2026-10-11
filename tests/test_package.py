@@ -3,6 +3,7 @@
 import tomllib
 from pathlib import Path
 
+import pytest
 import yaml
 from lib_opendefence_core.models.v1alpha1 import Integration
 
@@ -34,15 +35,21 @@ def test_integration_registration_uses_the_shared_model_without_extra_roles() ->
 def test_zarf_package_matches_the_operator_overlay() -> None:
     package = yaml.safe_load((ROOT / "zarf.yaml").read_text())
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    image = f"zarf.internal/opendefence/integration-mediamtx:{project['project']['version']}"
-    assert package["metadata"]["version"] == project["project"]["version"]
+    bump = tomllib.loads((ROOT / ".bumpversion.toml").read_text())
+    lock = tomllib.loads((ROOT / "uv.lock").read_text())
+    locked = next(item for item in lock["package"] if item["name"] == "opendefence-integration-mediamtx")
+    assert project["project"]["version"] == bump["tool"]["bumpversion"]["current_version"] == locked["version"]
+    version = project["project"]["version"].replace("+", "-")
+    image = f"zarf.internal/opendefence/integration-mediamtx:{version}"
+    assert package["metadata"]["version"] == version
+    assert package["constants"] == [{"name": "OPERATOR_IMAGE", "value": image}]
     component = next(item for item in package["components"] if item["name"] == "operator")
     assert component["imageArchives"][0]["images"] == [image]
     template = (ROOT / component["manifests"][0]["files"][0]).read_text()
     for values_file in ("values/values.yaml", "values/local-dev.yaml"):
         namespace = yaml.safe_load((ROOT / values_file).read_text())["namespace"]
         rendered = template.replace(NAMESPACE_TEMPLATE, namespace)
-        rendered = rendered.replace("{{ .Pkg.Metadata.Version }}", package["metadata"]["version"])
+        rendered = rendered.replace("{{ .Constants.OPERATOR_IMAGE }}", image)
         documents = list(yaml.safe_load_all(rendered))
         assert all(
             document["metadata"]["namespace"] == namespace
@@ -79,14 +86,20 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
         ]
 
 
-def test_build_version_changes_workload_image_tags_and_registration_together() -> None:
-    version = "0.1.0-pr42-20261011T1600-123.1"
+@pytest.mark.parametrize("published", [False, True])
+def test_build_image_and_version_reach_both_containers_and_registration(published: bool) -> None:
+    version = "0.1.0-261011-123.1"
+    image = (
+        "ghcr.io/opendefence/integration-mediamtx-operator@sha256:" + "a" * 64
+        if published
+        else f"zarf.internal/opendefence/integration-mediamtx:{version}"
+    )
     operator = (ROOT / "manifests/operator/operator.yaml.tmpl").read_text()
     rendered = operator.replace(NAMESPACE_TEMPLATE, "integration-mediamtx-dev")
-    rendered = rendered.replace("{{ .Pkg.Metadata.Version }}", version)
+    rendered = rendered.replace("{{ .Constants.OPERATOR_IMAGE }}", image)
     deployment = next(document for document in yaml.safe_load_all(rendered) if document["kind"] == "Deployment")
     images = {container["image"] for container in deployment["spec"]["template"]["spec"]["containers"]}
-    assert images == {f"zarf.internal/opendefence/integration-mediamtx:{version}"}
+    assert images == {image}
     integration = (ROOT / "manifests/integration/integration.yaml.tmpl").read_text()
     rendered = integration.replace(NAMESPACE_TEMPLATE, "integration-mediamtx-dev")
     rendered = rendered.replace("{{ .Pkg.Metadata.Version | quote }}", f'"{version}"')

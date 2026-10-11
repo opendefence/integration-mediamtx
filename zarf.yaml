@@ -1,9 +1,12 @@
 kind: ZarfPackageConfig
 metadata:
   name: integration-mediamtx
-  # CI sets this version and the bundled image tag for each build.
-  version: 0.1.0
+  # CI sets this version and the bundled image reference for each build.
+  version: 0.1.0-261011
   description: OpenDefence MediaMTX server and credential operator
+constants:
+  - name: OPERATOR_IMAGE
+    value: zarf.internal/opendefence/integration-mediamtx:0.1.0-261011
 values:
   files:
     - values/values.yaml
@@ -28,7 +31,7 @@ components:
     imageArchives:
       - path: .local/operator-image.tar
         images:
-          - zarf.internal/opendefence/integration-mediamtx:0.1.0
+          - zarf.internal/opendefence/integration-mediamtx:0.1.0-261011
     manifests:
       - name: operator
         template: true

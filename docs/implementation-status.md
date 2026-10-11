@@ -12,6 +12,33 @@ and no new Core policy projection fields.
 Approved Users stay as permanent records after revocation. Deletion and
 recreation tests use only unapproved Users.
 
+## Image publishing and version checkpoint
+
+Date: 2026-10-11. `.bumpversion.toml` now follows the `tak-server` date format.
+The Python version is `0.1.0+261011`. Zarf versions and image tags use
+`0.1.0-261011`. The bump tool updates the project, lockfile, Zarf version,
+and local image references together. It does not create a commit or Git tag.
+
+Trusted CI runs use the shared `publish-image` action on `arc-runner-set`.
+It publishes AMD64 and ARM64 images to
+`ghcr.io/opendefence/integration-mediamtx-operator`. Zarf uses that image by
+digest and publishes packages with the tags returned by the image action.
+It does not rebuild the image. Fork PRs and Dependabot runs keep their
+GitHub-hosted image and package builds. Image failures stop package publishing.
+
+`task check` passed 263 tests, Ruff, and strict Pyrefly. Zarf lint and both
+overlay renders passed. Actionlint passed with the ARC runner label configured.
+All applicable pre-commit checks passed. The required ponytail-audit found
+no new defect for one MediaMTX instance and a few hundred Users. The existing
+credential delivery, session cleanup, certificate reload, and User watch
+limits remain documented work.
+The bump tool changed an isolated copy to `0.2.0+261012`; all version fields
+changed together. Both ARM64 package paths built successfully. A temporary
+local registry supplied the image for the digest-based path. Inspection
+confirmed that the package and both Deployment containers used that digest.
+The registry was removed after the test. The new ARC image job and GHCR image
+publication still need a CI run from this repository.
+
 ## CI package checkpoint
 
 Date: 2026-10-11. The Checks workflow now builds AMD64 and ARM64 Zarf packages
@@ -36,8 +63,11 @@ Tests reject missing architecture files and signing or publishing failures.
 The required ponytail-audit assumed one MediaMTX instance and a few hundred
 Users. It found no new defect. Existing credential delivery, session cleanup,
 certificate reload, and User watch limits remain documented work.
-Hosted CI, the AMD64 build, GitHub OIDC signing, and GHCR publication were not
-executed locally. No package was pushed to an external registry.
+After the user pushed commit `bd508b8`, the
+[first package CI run](https://github.com/opendefence/integration-mediamtx/actions/runs/38140226968)
+passed both architecture builds, GitHub OIDC signing, and GHCR publication.
+It published `0.1.0-pr1-20261011T1242`, `0.1.0-pr1`, and `1-merge`.
+This run preceded the separate image publishing job above.
 
 ## Integration registration checkpoint
 
@@ -687,8 +717,8 @@ deployed locally with callsign/password authorization. Bindings stay `Synced=Fal
 while credential delivery and session cleanup remain incomplete. Core policy
 provenance, real RTMPS, SRT, WebRTC/ICE and MoQ clients, Core policy and
 MediaMTX provisioning faults, trusted ingress, NetworkPolicy enforcement,
-offline installation, AMD64, and hosted CI execution are not checked.
-CI builds the application image into the Zarf archive and publishes the package.
-Hosted signing and registry publication remain untested locally.
+offline installation, and AMD64 workload execution are not checked.
+The first package CI run passed AMD64 and ARM64 builds, signing, and publishing.
+The new ARC image publishing flow remains to be checked in CI.
 The Core companion document was located during M1. Its source hash and the
 user-supplied companion search URLs are recorded in `docs/m1-contracts.md`.

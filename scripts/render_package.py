@@ -13,7 +13,7 @@ OUTPUT = ROOT / "manifests/operator/operator.yaml.tmpl"
 
 
 def render() -> str:
-    image = "zarf.internal/opendefence/integration-mediamtx:{{ .Pkg.Metadata.Version }}"
+    image = "{{ .Constants.OPERATOR_IMAGE }}"
     documents = create_operator(namespace=NAMESPACE).manifests(image=image, command=["mediamtx-operator"])
     deployment = next(document for document in documents if document["kind"] == "Deployment")
     pod = deployment["spec"]["template"]["spec"]

@@ -386,7 +386,7 @@ wheels = [
 
 [[package]]
 name = "opendefence-integration-mediamtx"
-version = "0.1.0"
+version = "0.1.0+261011"
 source = { editable = "." }
 dependencies = [
     { name = "cloudcoil", extra = ["kubernetes", "operator"] },

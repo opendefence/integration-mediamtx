@@ -136,7 +136,8 @@ connected to issuance or `mediamtx-operator` yet.
 ## Zarf package
 
 `zarf.yaml` packages `mediamtx-operator` and MediaMTX 1.21.2. It builds the
-`mediamtx-operator` image locally. It includes the MediaMTX image in the offline package.
+`mediamtx-operator` image locally with `task package:build`. CI can use the
+published image by digest. Both images are included in the offline package.
 Base, Core and Core's shared CRDs must be installed first. Create
 a dedicated namespace before deploying; this package leaves namespace lifecycle
 with the cluster owner so removing it cannot delete unrelated objects.
@@ -202,7 +203,8 @@ self-contained ARM64 package with Podman:
 task package:build ARCH=arm64 CONTAINER_RUNTIME=podman
 ```
 
-The archive is `dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst`.
+At version `0.1.0+261011`, the archive is
+`dist/zarf-package-integration-mediamtx-arm64-0.1.0-261011.tar.zst`.
 For an AMD64 Docker host, omit those overrides (Docker 25 or newer is needed
 for a compatible [Zarf image archive](https://docs.zarf.dev/ref/components/)).
 The build creates an ignored `mediamtx-operator` OCI image archive in `.local/`. Zarf pulls
@@ -212,7 +214,7 @@ specified in `values/local-dev.yaml`. Then deploy with:
 
 ```sh
 kubectl create namespace integration-mediamtx-dev
-task package:deploy:local PACKAGE_FILE=dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst
+task package:deploy:local PACKAGE_FILE=dist/zarf-package-integration-mediamtx-arm64-0.1.0-261011.tar.zst
 ```
 
 This task loads the built `mediamtx-operator` image into Kind before it deploys
@@ -225,36 +227,42 @@ authorizes media passwords. Public credential delivery remains pending.
 
 ## CI packages
 
-The Checks workflow builds AMD64 and ARM64 Zarf packages after the Python and
-package checks pass. It runs on pull requests (PRs), pushes to `main`, and
-manual dispatch. Each architecture uses a native GitHub-hosted runner. The
-workflow keeps the package archives as artifacts for seven days.
+The Checks workflow runs on pull requests (PRs), pushes to `main`, and manual
+dispatch. After Python and package checks pass, trusted runs use
+`arc-runner-set` and the shared
+[publish-image action](https://github.com/pvarki/config-ci-library/blob/1786399bf62c2b691f1e8fb9dcfc7a0be72a2846/.github/actions/publish-image/action.yml).
+The action builds both image architectures and publishes them to
+`ghcr.io/opendefence/integration-mediamtx-operator`.
 
-In this repository, pushes to `main`, same-repository PRs, and manual runs
-publish to `ghcr.io/opendefence/packages/integration-mediamtx`. Fork PRs and
-Dependabot runs produce artifacts only. The publish job uses `GITHUB_TOKEN`
-with `packages: write`. It requires both architecture builds to pass.
+Zarf jobs read that image by digest and include it in AMD64 and ARM64 packages.
+They do not rebuild the image. Both containers in the `mediamtx-operator`
+Deployment use that digest. The packages publish to
+`ghcr.io/opendefence/packages/integration-mediamtx`.
+
+Trusted runs are pushes to `main`, same-repository PRs, and manual runs in this
+repository. Fork PRs and Dependabot runs use GitHub-hosted runners to build
+local images and package artifacts. They cannot enter the ARC image job or
+either publish job. Package artifacts are kept for seven days.
+Image and package publishing use `GITHUB_TOKEN` with `packages: write`.
 Like the base workflow, it signs each package with GitHub's OpenID Connect
-(OIDC) identity before publishing. Only the publish job receives
+(OIDC) identity before publishing. Only the package publish job receives
 `id-token: write`. Downloaded build artifacts are unsigned; published packages
 contain the signature.
 
-Tags follow the shared
-[publish-image action](https://github.com/pvarki/config-ci-library/blob/1786399bf62c2b691f1e8fb9dcfc7a0be72a2846/.github/actions/publish-image/action.yml).
-For base version `0.1.0`, PR 42, and UTC build time `20261011T1600`:
+The package job uses the tags returned by the image action. For base version
+`0.1.0+261011`, PR 42, and UTC build time `20261011T1600`:
 
-| Run | Package tags |
+| Run | Image and package tags |
 | --- | --- |
-| `main` | `0.1.0-20261011T1600`, `0.1.0`, `0.1.0-local`, `main`, `latest` |
-| PR 42 | `0.1.0-pr42-20261011T1600`, `0.1.0-pr42`, `42-merge` |
+| `main` | `0.1.0-261011-20261011T1600`, `0.1.0-261011`, `0.1.0-261011-local`, `main`, `latest` |
+| PR 42 | `0.1.0-261011-pr42-20261011T1600`, `0.1.0-261011-pr42`, `42-merge` |
 | Manual run on `feature/test` | `feature-test` |
 
-The base version comes from `pyproject.toml`. CI sets the package version to
-the first tag above plus the GitHub run ID and attempt, for example
-`0.1.0-pr42-20261011T1600-123.1`. This version also sets the bundled
-`mediamtx-operator` image tag and the Integration record version. A new build
-therefore changes the Deployment image. Local builds keep the version in
-`zarf.yaml`.
+Each run also gets a build tag with its run ID and attempt, for example
+`0.1.0-261011-123.1`. This tag sets the package and Integration record version.
+CI resolves the image digest from this build tag. Image lookup or image
+publication failures stop package publication. Local builds use the version
+and image reference in `zarf.yaml`.
 
 Each published tag contains both architectures. The publish job uploads them
 in sequence because Zarf updates a shared image index. Runs for the same PR
@@ -262,5 +270,21 @@ or branch also run in sequence. The job summary lists the published tags.
 To download a package, select its architecture:
 
 ```sh
-zarf package pull oci://ghcr.io/opendefence/packages/integration-mediamtx:0.1.0-pr42 --architecture arm64
+zarf package pull oci://ghcr.io/opendefence/packages/integration-mediamtx:0.1.0-261011-pr42 --architecture arm64
 ```
+
+## Version changes
+
+`.bumpversion.toml` follows the `tak-server` pattern:
+`major.minor.patch+YYMMDD`. Container tags and Zarf versions use `-` in place
+of `+`. The configuration updates the Python project, its lockfile entry,
+the Zarf version, and both local image references together. It creates no
+commit or Git tag. From a clean worktree, run one of:
+
+```sh
+uv run --locked bump-my-version bump patch
+uv run --locked bump-my-version bump build
+```
+
+`build` updates the date. Run `task check` and `task package:check` after a
+version change. The checks reject version fields that do not match.
