@@ -4,13 +4,14 @@
 UserBindings in one namespace. It creates missing observations with the existing atomic
 binding adapter. It reads the current User from Kubernetes before creation;
 cached identity only selects work. Recreated, unapproved test Users get separate
-bindings with the new UID. It does not change Core Users, resolve roles or issue
-credentials.
+bindings with the new UID. It creates one media password Secret for each
+approved, unrevoked User. It does not change Core Users or resolve Roles.
 It does not call or require `core-operator`. A test can set User CRD status
 directly and trigger the same User watch.
 
-Provisioning remains incomplete while Core's effective Role projection and
-MediaMTX configuration reconciliation are pending. `mediamtx-operator` sets only
+The [callsign callback](m2-user-auth.md) uses the current User schema.
+Provisioning remains incomplete while credential delivery and automated
+session cleanup are pending. `mediamtx-operator` sets only
 `Synced=False` and the observed generation. It clears former readiness on owned
 bindings, including orphaned bindings, without retargeting or deleting them.
 Unrelated and mismatched bindings are not adopted. Deleting bindings are left
@@ -20,18 +21,19 @@ User changes and binding changes enqueue reconciliation. Startup replays both
 resource lists; successful passes schedule another observation after 60 seconds.
 Core plans to write effective Role and Group changes into the User object. A
 status-only User update maps to the same binding key. The current shared User
-model has only direct Roles, so `mediamtx-operator` still reports provisioning as
-pending after that event.
+status supplies `superadmin` to the callback. No separate MediaMTX Role or new
+Core media-policy schema is required.
 
 User certificates grant no Roles. The projected Role and Group lists on the
-User resource are the membership input. Future `mediamtx-operator`
-reconciliation must apply this integration's Role rules to MediaMTX access
-when those lists change.
+User resource are the membership input. The callback fetches the User on each
+request, so a projected `superadmin` change applies to the next callback.
+Normal Users need the password and callsign path rules only.
 
 Conflicts and dependency failures propagate to Cloudcoil's retry queue. Each
 attempt reads a new binding before its UID/resource-version guarded status
 write. An unchanged observation preserves transition times and makes no write.
-This repairs observation status; it does not prove fresh authorization or end
+This repairs observation status and ensures passwords for active Users. The
+separate callback checks new admission. Reconciliation does not yet end
 existing media sessions.
 
 ## Run
@@ -174,8 +176,9 @@ uv run --locked mediamtx-operator manifests \
 ```
 
 The generated ClusterRole only reads Core Users. Binding permissions remain in
-the selected namespace. `mediamtx-operator` receives no Secret, Core status, deletion,
-CRD installation or RBAC administration permissions. Shared CRDs are not
+the selected namespace. `mediamtx-operator` can get and create Secrets there.
+It has no Core status, deletion, CRD installation, or RBAC administration
+permissions. Shared CRDs are not
 generated or installed by this application, including when the shared Core
 models carry Cloudcoil CRD metadata. Use one replica for this slice.
 The [Zarf package workflow](../README.md#zarf-package) builds a local

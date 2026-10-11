@@ -1,4 +1,4 @@
-"""Pure media admission policy; inputs are semantic projections, not Core CRDs."""
+"""Scoped-grant probe policy; the callsign callback uses authorization.py."""
 
 import hmac
 import re

@@ -392,6 +392,7 @@ dependencies = [
     { name = "cloudcoil", extra = ["kubernetes", "operator"] },
     { name = "httpx" },
     { name = "lib-opendefence-core" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -415,6 +416,7 @@ requires-dist = [
     { name = "cloudcoil", extras = ["kubernetes", "operator"] },
     { name = "httpx", specifier = ">=0.28,<1.0" },
     { name = "lib-opendefence-core", specifier = ">=0.2.1,<0.3", index = "https://nexus.dev.pvarki.fi/repository/pypilocal/simple/" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata.requires-dev]

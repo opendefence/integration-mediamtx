@@ -9,7 +9,14 @@ spec:
       app.kubernetes.io/name: mediamtx-operator
   policyTypes:
     - Ingress
-  ingress: []
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mediamtx
+      ports:
+        - protocol: TCP
+          port: 9443 # Private authorization callback
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

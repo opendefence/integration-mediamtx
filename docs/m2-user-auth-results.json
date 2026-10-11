@@ -1,0 +1,23 @@
+{
+  "context": "kind-opendefence-dev",
+  "coreOperatorRequired": false,
+  "date": "2026-10-11T12:00:39.901179+00:00",
+  "namespace": "integration-mediamtx-dev",
+  "results": {
+    "hls-revoked": 401,
+    "hls-valid-password-no-publisher": 404,
+    "hls-wrong-password": 401,
+    "normal-api": 403,
+    "normal-publish-other": 403,
+    "normal-publish-own": 204,
+    "normal-read": 204,
+    "revoked-read": 403,
+    "role-removed-api": 403,
+    "superadmin-api": 204,
+    "superadmin-metrics": 204,
+    "superadmin-pprof": 204,
+    "superadmin-publish-other": 204,
+    "superadmin-wrong-password": 403
+  },
+  "retainedRevokedUser": "mtxauth1791720032"
+}

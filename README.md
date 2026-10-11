@@ -1,16 +1,18 @@
 # OpenDefence MediaMTX integration
 
 This repository starts the replacement for the legacy MediaMTX integration.
-It includes policy adapters, the `mediamtx-operator` binding observer, and a
-packaged MediaMTX server. User authorization and stream provisioning remain pending. The
+It includes `mediamtx-operator`, a private password authorization callback,
+and a packaged MediaMTX server. Public credential delivery and session cleanup
+remain pending. The
 [original implementation plan](docs/integration-mediamtx-plan.md) and
 [original API draft](docs/openapi.json) are design references. See the
 [implementation status](docs/implementation-status.md) for current work and evidence.
 
 `mediamtx-operator` reads Kubernetes User CRD state. It does not call or require
 `core-operator` at runtime. Tests can supply projected User roles and group
-memberships directly in CRD status. Media authorization still needs an agreed
-effective-role projection schema and the public API implementation.
+memberships directly in CRD status. The current User schema supports media
+authorization: normal Users use callsign paths and passwords. Only projected
+`superadmin` adds an override. See [the callback guide](docs/m2-user-auth.md).
 
 Use Python 3.14, uv and Task 3.54.0. Install Task with `mise install`, or use
 the same version from the official Task distribution. Run `task sync`, then
@@ -92,34 +94,31 @@ See the [decision record](docs/decisions/0001-foundation.md) and the
 The [M1 contracts](docs/m1-contracts.md), [protocol findings](docs/m1-findings.md)
 and [reproducible spike](spikes/m1/README.md) record the first integration checks
 and the remaining Core and routing gates.
-The [M2 policy implementation](docs/m2-policy.md) adds canonical stream paths and
-scoped admission checks with fresh Core identity and Role inputs. The public API
-and stream provisioning remain pending their shared contracts.
-The [Core User projection handoff](docs/core-media-policy-handoff.md) lists the
-Core identity and effective Role data that this integration needs. This
-integration defines MediaMTX Role meanings and access rules.
+The [current callback](docs/m2-user-auth.md) fetches `User/<username>` for each
+request and validates the stored password. Active Users can read any path and
+publish to their own callsign path. No MediaMTX Role is required.
+The [Core handoff](docs/core-media-policy-handoff.md) records this contract.
+The earlier [scoped-grant policy](docs/m2-policy.md) remains a separate probe.
 Current media paths use `live/{tool}/{callsign}`. The original plan and API draft
 retain the earlier UUID-path proposal as historical design text.
 MediaMTX `api`, `metrics`, and `pprof` actions are reserved for current Core
 `superadmin` Users and this integration's own service identity. See the
-[control-action boundary](docs/core-media-policy-handoff.md#mediamtx-role-meanings-owned-by-this-integration).
+[authorization rule](docs/core-media-policy-handoff.md#current-authorization-rule).
 Core owns User mutual Transport Layer Security (mTLS) authentication. Traefik
 ends mTLS and sends a verified User UUID to the REST API. The integration's
 header parser consumes `X-OpenDefence-User-UUID` by default, with a configurable
 name. See the [Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate
 header handling and the supplied UserBinding schema.
-The certificate identifies the User. It grants no Roles. Media access depends
-on the projected Role and Group lists in that User resource and this
-integration's Role rules. The integration does not read User certificate data.
-MediaMTX will check integration-issued passwords for media streams when grant
-issuance is connected.
+The certificate identifies the User. It grants no Roles. The integration reads
+projected `superadmin` only from User status. It does not read User certificate
+data. MediaMTX checks integration-issued passwords through the HTTPS callback.
 Integration workloads do not use service Users or UserBindings.
 The [M2 binding adapter](docs/m2-bindings.md) implements atomic binding creation
-and guarded status writes, with an explicit live CRD probe. Core's effective
-Role projection and the public API remain separate work. The
+and guarded status writes, with an explicit live CRD probe. The
 [`mediamtx-operator`](docs/m2-operator.md) runs these observations with
-`task operator:run`. Provisioning stays incomplete until Core's Role
-projection and MediaMTX configuration are implemented.
+`task operator:run`. It creates a stable password Secret for each approved,
+unrevoked User. Bindings stay pending until session cleanup and credential
+delivery are complete.
 The [kubectl test](docs/m2-operator.md#test-with-kubectl-without-core-operator)
 creates a disposable, unapproved User and changes its projected roles and groups
 without running `core-operator`. An approved User stays as a permanent record
@@ -141,14 +140,14 @@ Base, Core and Core's shared CRDs must be installed first. Create
 a dedicated namespace before deploying; this package leaves namespace lifecycle
 with the cluster owner so removing it cannot delete unrelated objects.
 The package installs a MediaMTX Deployment, ClusterIP Service, configuration,
-and a certificate from base's `public-issuer`. The media configuration has no
-users. It denies all stream and control requests until an authorization service
-is ready. The control API, metrics, and profiling listeners are disabled.
+and a certificate from base's `public-issuer`. MediaMTX calls the private HTTPS
+authorization service beside `mediamtx-operator`. A namespace-local cert-manager
+CA secures that service. The control API, metrics, and profiling listeners are disabled.
 The local development overlay uses the CA-backed `public-issuer` from base.
 This package does not configure the issuer.
 
 The package also installs ingress `NetworkPolicy` rules. They select `mediamtx-operator`
-with no allowed Pod ingress and allow Traefik Pods in `traefik-system` to reach
+with callback port 9443 accessible only to MediaMTX Pods. They allow Traefik Pods in `traefik-system` to reach
 MediaMTX's HLS, WebRTC signaling, RTSPS, RTMPS, SRT, WebRTC ICE, and MoQ ports. The
 `mediamtx-operator` Pod may reach MediaMTX's private control API on port 9997
 when that API is enabled. Other NetworkPolicies can add permissions. The MediaMTX Pod uses
@@ -162,7 +161,7 @@ NetworkPolicy enforcement must be
 verified with the cluster's network plugin before relying on the rules.
 Plain RTSP and RTMP remain disabled. MoQ uses Basic username and password
 credentials in its [authorization token](https://github.com/bluenviron/mediamtx/blob/v1.21.2/internal/servers/moq/session.go).
-MoQ grant issuance is pending because MediaMTX 1.21.2 does not include
+The callsign callback accepts MoQ. Session cleanup remains limited because MediaMTX 1.21.2 does not include
 usernames in its [MoQ session list](https://github.com/bluenviron/mediamtx/blob/v1.21.2/internal/defs/api_moq.go).
 The current grant cleanup needs usernames to close sessions after revocation.
 
@@ -211,5 +210,5 @@ the package in Zarf connected mode. For a Zarf-initialized cluster, use `task pa
 instead. That task uses `values/values.yaml` by default. Supply a deployment
 values file with `VALUES_FILE`, and set both `namespace` and `domain` in that
 file. Create that namespace before deployment.
-The package has not been deployed to a production cluster. Its media server
-rejects access until the public API and authorization service are connected.
+The package has not been deployed to a production cluster. The private callback
+authorizes media passwords. Public credential delivery remains pending.

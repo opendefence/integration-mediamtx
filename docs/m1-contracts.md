@@ -1,5 +1,12 @@
 # M1 contracts and dependency gates
 
+Superseded for current media admission on 2026-10-11: the
+[callsign callback](m2-user-auth.md) uses passwords and the existing User model.
+Only projected `superadmin` adds an override. The effective media Role,
+revision, and freshness fields proposed below are historical scoped-grant
+requirements. They do not block the current callback. See the
+[current Core handoff](core-media-policy-handoff.md).
+
 Date: 2026-10-10. These are integration design decisions and requirements for
 Core review, updated with the user's M2 clarification. They are not a running API. The
 [protocol findings](m1-findings.md) distinguish live evidence from design.

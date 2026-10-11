@@ -23,7 +23,9 @@ metadata:
   namespace: {{ .Values.namespace }}
 data:
   mediamtx.yml: |
-    authMethod: internal
+    authMethod: http
+    authHTTPAddress: https://mediamtx-auth.{{ .Values.namespace }}.svc:9443/internal/mediamtx/auth
+    authHTTPExclude: []
     authInternalUsers: []
     api: false
     metrics: false
@@ -68,6 +70,9 @@ spec:
         - name: mediamtx
           image: docker.io/bluenviron/mediamtx:1.21.2@sha256:c7540465f868a02652118bea5a0daab12a29ac0f6cb8485abd535939ecddf886
           command: [/mediamtx, /config/mediamtx.yml]
+          env:
+            - name: SSL_CERT_FILE
+              value: /auth-ca/ca.crt
           ports:
             - {name: hls, containerPort: 8888, protocol: TCP}
             - {name: webrtc, containerPort: 8889, protocol: TCP}
@@ -95,6 +100,7 @@ spec:
           volumeMounts:
             - {name: config, mountPath: /config, readOnly: true}
             - {name: tls, mountPath: /tls, readOnly: true}
+            - {name: auth-ca, mountPath: /auth-ca, readOnly: true}
       volumes:
         - name: config
           configMap:
@@ -102,6 +108,12 @@ spec:
         - name: tls
           secret:
             secretName: mediamtx-tls # pragma: allowlist secret
+        - name: auth-ca
+          secret:
+            secretName: mediamtx-auth-ca # pragma: allowlist secret
+            items:
+              - key: tls.crt
+                path: ca.crt
 ---
 apiVersion: v1
 kind: Service

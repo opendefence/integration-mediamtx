@@ -141,6 +141,13 @@ tasks:
     cmds:
       - uv run --locked mediamtx-operator run
 
+  auth:run:
+    desc: Run the private MediaMTX HTTPS callback against the selected Kubernetes context
+    requires:
+      vars: [TLS_CERT_FILE, TLS_KEY_FILE]
+    cmds:
+      - uv run --locked mediamtx-auth --tls-cert {{.TLS_CERT_FILE | shellQuote}} --tls-key {{.TLS_KEY_FILE | shellQuote}}
+
   base:up:
     desc: Create the base development cluster and install a base package
     preconditions:

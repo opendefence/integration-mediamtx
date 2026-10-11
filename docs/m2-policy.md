@@ -1,4 +1,9 @@
-# M2 policy implementation
+# M2 scoped-grant policy probe
+
+The [callsign callback](m2-user-auth.md) is the current media authorization
+path. It uses the existing User model and requires no MediaMTX Role. The
+scoped-grant policy below remains for the earlier probe and its tests. Its
+synthetic effective-policy fields are not current Core requirements.
 
 Date: 2026-10-10. This completes the independent policy slice of M2. The public
 API, `mediamtx-operator` and Core adapter still depend on the [M1 contracts](m1-contracts.md).

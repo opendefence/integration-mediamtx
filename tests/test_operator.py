@@ -12,6 +12,7 @@ from cloudcoil.apimachinery import ObjectMeta, Time
 from cloudcoil.client import AsyncAPIClient
 from cloudcoil.controller import Request, ResourceKey
 from cloudcoil.errors import APIError, ResourceConflict
+from cloudcoil.models.kubernetes.core.v1 import Secret
 
 from lib_opendefence_core.models.v1alpha1 import ResolvedRef, User, UserBinding, UserSpec, UserStatus
 
@@ -58,11 +59,21 @@ class Kubernetes:
         self.user = core_user().model_dump(mode="json", by_alias=True, exclude_none=True)
         self.user_code = 200
         self.patch_code = 200
+        self.secret: dict[str, Any] | None = None
         self.requests: list[httpx.Request] = []
 
-    def respond(self, request: httpx.Request) -> httpx.Response:
+    def respond(self, request: httpx.Request) -> httpx.Response:  # noqa: PLR0911 - Explicit Kubernetes response cases.
         self.requests.append(request)
         assert request.method in {"GET", "POST", "PATCH"}
+        if "/secrets" in request.url.path:
+            assert f"/namespaces/{NAMESPACE}/secrets" in request.url.path
+            if request.method == "POST":
+                assert self.secret is None
+                self.secret = json.loads(request.content)
+                assert self.secret is not None
+                self.secret["metadata"].update(uid=str(UUID(int=9)), resourceVersion="1")
+                return httpx.Response(201, json=self.secret)
+            return httpx.Response(200, json=self.secret) if self.secret else httpx.Response(404, json={})
         if request.url.path.endswith("/users/alpha"):
             assert request.method == "GET"
             return httpx.Response(self.user_code, json=self.user)
@@ -125,7 +136,16 @@ def request_for(http: httpx.AsyncClient, users: list[User] | None = None) -> Req
     request.name = NAME
     request.namespace = NAMESPACE
     request.resource = None
-    request.client = AsyncMock(side_effect={UserBinding: bindings, User: core}.get)
+    passwords = AsyncAPIClient(
+        api_version="v1",
+        kind=Secret,
+        resource="secrets",
+        subresources=[],
+        default_namespace=NAMESPACE,
+        namespaced=True,
+        client=http,
+    )
+    request.client = AsyncMock(side_effect={UserBinding: bindings, User: core, Secret: passwords}.get)
     request.cached.return_value.list.return_value = [core_user()] if users is None else users
     return cast(Request[UserBinding], request)
 
@@ -145,7 +165,27 @@ async def test_creates_pending_binding_and_restarts_without_duplicate_or_status_
     assert status["observedGeneration"] == 2
     assert status["conditions"][0]["status"] == "False"
     assert status["conditions"][0]["reason"] == "ProvisioningPending"
-    assert [request.method for request in kube.requests] == ["GET", "GET", "POST", "PATCH", "GET"]
+    assert [request.method for request in kube.requests] == ["GET", "GET", "POST", "PATCH", "GET", "GET"]
+
+
+@pytest.mark.parametrize("state", ["active", "revoked", "unapproved", "replaced"])
+@pytest.mark.asyncio
+async def test_only_current_active_user_gets_a_stable_password(state: str) -> None:
+    kube = Kubernetes(stored_binding())
+    if state != "unapproved":
+        kube.user["spec"]["approvedAt"] = NOW.isoformat()
+    if state == "revoked":
+        kube.user["spec"]["revokedAt"] = NOW.isoformat()
+    if state == "replaced":
+        kube.user["metadata"]["uid"] = str(UUID(int=7))
+    async with httpx.AsyncClient(
+        base_url="https://kubernetes.test", transport=httpx.MockTransport(kube.respond)
+    ) as http:
+        await reconcile_binding(request_for(http), namespace=NAMESPACE)
+        await reconcile_binding(request_for(http), namespace=NAMESPACE)
+    assert (kube.secret is not None) == (state == "active")
+    writes = [request for request in kube.requests if "/secrets" in request.url.path and request.method == "POST"]
+    assert len(writes) == (1 if state == "active" else 0)
 
 
 @pytest.mark.parametrize("change", ["replaced", "deleting", "missing", "no-cached-user"])
@@ -192,7 +232,7 @@ async def test_clears_former_readiness_for_orphan_without_deleting_or_retargetin
     conditions = kube.binding["status"]["conditions"]
     assert conditions[0]["status"] == "False" and conditions[0]["observedGeneration"] == 2
     assert conditions[1]["type"] == "SessionsDrained" and conditions[1]["status"] == "False"
-    assert [request.method for request in kube.requests] == ["GET", "PATCH"]
+    assert [request.method for request in kube.requests] == ["GET", "PATCH", "GET"]
 
 
 @pytest.mark.parametrize("change", ["owner", "namespace", "annotation", "name"])
@@ -251,7 +291,7 @@ async def test_failures_propagate_and_next_pass_reads_a_new_status_baseline(code
         kube.binding["metadata"]["resourceVersion"] = "20"
         kube.patch_code = 200
         await reconcile_binding(request_for(http), namespace=NAMESPACE)
-    assert [request.method for request in kube.requests] == ["GET", "PATCH", "GET", "PATCH"]
+    assert [request.method for request in kube.requests] == ["GET", "PATCH", "GET", "PATCH", "GET"]
 
 
 @pytest.mark.asyncio
@@ -307,7 +347,8 @@ def test_offline_manifests_preserve_core_ownership_and_namespace_scoping() -> No
     ]
     role = next(document for document in documents if document["kind"] == "Role")
     assert role["metadata"]["namespace"] == NAMESPACE
-    assert {rule["resources"][0] for rule in role["rules"]} == {"userbindings", "userbindings/status"}
+    assert {rule["resources"][0] for rule in role["rules"]} == {"userbindings", "userbindings/status", "secrets"}
+    assert next(rule["verbs"] for rule in role["rules"] if rule["resources"] == ["secrets"]) == ["create", "get"]
     assert all("delete" not in rule["verbs"] for rule in role["rules"])
     assert not any(document["kind"] in {"CustomResourceDefinition", "Service", "Secret"} for document in documents)
     deployment = next(document for document in documents if document["kind"] == "Deployment")

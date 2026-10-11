@@ -8,6 +8,7 @@ dependencies = [
     "cloudcoil[kubernetes,operator]",
     "httpx>=0.28,<1.0",
     "lib-opendefence-core>=0.2.1,<0.3",
+    "uvicorn",
 ]
 
 [tool.uv.sources]
@@ -20,6 +21,7 @@ explicit = true
 
 [project.scripts]
 mediamtx-operator = "opendefence_integration_mediamtx.operator:main"
+mediamtx-auth = "opendefence_integration_mediamtx.callback:main"
 
 [dependency-groups]
 dev = [

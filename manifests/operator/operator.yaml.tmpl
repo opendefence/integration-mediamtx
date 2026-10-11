@@ -39,6 +39,13 @@ metadata:
   namespace: {{ .Values.namespace }}
 rules:
 - apiGroups:
+  - ''
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+- apiGroups:
   - platform.opendefence.fi
   resources:
   - userbindings
@@ -90,7 +97,7 @@ spec:
         image: zarf.internal/opendefence/integration-mediamtx:0.1.0
         args:
         - run
-        env:
+        env: &id001
         - name: CLOUDCOIL_NAMESPACE
           valueFrom:
             fieldRef:
@@ -117,12 +124,46 @@ spec:
             memory: 64Mi
           limits:
             memory: 256Mi
-        securityContext:
+        securityContext: &id002
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL
+      - name: auth
+        image: zarf.internal/opendefence/integration-mediamtx:0.1.0
+        command:
+        - mediamtx-auth
+        args:
+        - --host
+        - 0.0.0.0
+        - --tls-cert
+        - /tls/tls.crt
+        - --tls-key
+        - /tls/tls.key
+        env: *id001
+        ports:
+        - name: auth
+          containerPort: 9443
+        volumeMounts:
+        - name: auth-tls
+          mountPath: /tls
+          readOnly: true
+        - name: runtime-tmp
+          mountPath: /tmp
+        readinessProbe:
+          tcpSocket:
+            port: auth
+        livenessProbe:
+          tcpSocket:
+            port: auth
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        securityContext: *id002
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -134,3 +175,6 @@ spec:
         emptyDir:
           medium: Memory
           sizeLimit: 16Mi
+      - name: auth-tls
+        secret:
+          secretName: mediamtx-auth-tls

@@ -1,4 +1,4 @@
-"""Binding observations; provisioning stays pending until the Core policy contract exists."""
+"""Observe bindings and issue passwords; readiness waits for the remaining lifecycle work."""
 
 import logging
 import os
@@ -11,6 +11,7 @@ from cloudcoil.application import Application, RBACRule
 from cloudcoil.client import Config
 from cloudcoil.controller import Controller, HealthServer, Request, ResourceKey, Result
 from cloudcoil.errors import ResourceNotFound
+from cloudcoil.models.kubernetes.core.v1 import Secret
 from lib_opendefence_core.models.v1alpha1 import User, UserBinding
 
 from opendefence_integration_mediamtx.bindings import (
@@ -18,6 +19,7 @@ from opendefence_integration_mediamtx.bindings import (
     ensure_binding,
     set_binding_pending,
 )
+from opendefence_integration_mediamtx.credentials import active_user, ensure_user_password
 
 
 class BindingApplication(Application):
@@ -51,6 +53,7 @@ def binding_keys(user: User, *, namespace: str) -> list[ResourceKey]:
 async def reconcile_binding(request: Request[UserBinding], *, namespace: str) -> Result | None:
     if request.namespace != namespace:
         raise ValueError("UserBinding is outside the mediamtx-operator namespace")
+    user: User | None = None
     bindings = await request.client(UserBinding)
     try:
         binding = await bindings.get(request.name)
@@ -75,6 +78,15 @@ async def reconcile_binding(request: Request[UserBinding], *, namespace: str) ->
     if binding.metadata and binding.metadata.deletion_timestamp:
         return None
     await set_binding_pending(binding, bindings, now=datetime.now(UTC))
+    if user is None:
+        users = await request.client(User)
+        try:
+            user = await users.get(binding.spec.user_ref.name)
+        except ResourceNotFound:
+            return Result(requeue_after=60)
+    if request.key in binding_keys(user, namespace=namespace) and active_user(user):
+        passwords = await request.client(Secret)
+        await ensure_user_password(user, passwords)
     return Result(requeue_after=60)
 
 
@@ -99,6 +111,7 @@ def create_operator(*, namespace: str, config: Config | None = None) -> Applicat
             RBACRule(User, ("get", "list", "watch"), plural="users", scope="Cluster"),
             RBACRule(UserBinding, ("create",), plural="userbindings", scope="Namespaced"),
             RBACRule(UserBinding, ("patch",), subresources=("status",)),
+            RBACRule(Secret, ("get", "create"), plural="secrets", scope="Namespaced"),
         ),
         health=HealthServer(host="0.0.0.0", port=8080),  # nosec B104 # Pod diagnostics, protected by deployment networking.
     )

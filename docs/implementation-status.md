@@ -1,14 +1,14 @@
 # Implementation status
 
-Date: 2026-10-11. Gate: M2 policy, identity, bindings and
-`mediamtx-operator` tested.
-The MediaMTX server is packaged. Stream provisioning and public API authorization
-still need Core's effective Role projection and integration code.
-M3 has not started.
+Date: 2026-10-11. M2 now has callsign/password authorization and a private
+HTTPS callback. `mediamtx-operator` creates stable password Secrets for approved,
+unrevoked Users. The package connects MediaMTX to the callback. Public
+credential delivery and automated session cleanup remain pending. M3 has not started.
 `mediamtx-operator` does not require a running `core-operator`. Kubernetes
 User CRD status is the input contract. Tests can write projected roles and
-memberships directly. The missing effective-role fields remain a schema gap,
-not a `core-operator` availability gate.
+memberships directly. The current User model is sufficient: only projected
+`superadmin` needs special handling. Normal media access needs no MediaMTX Role
+and no new Core policy projection fields.
 Approved Users stay as permanent records after revocation. Deletion and
 recreation tests use only unapproved Users.
 
@@ -18,11 +18,47 @@ Date: 2026-10-11. Traefik ends User mutual Transport Layer Security (mTLS)
 for the public REST API. It sends a verified User universally unique identifier
 (UUID) in a trusted header. The integration does not read User certificate
 records. A User certificate grants no Roles. Only the projected Role and Group
-lists on the User resource supply membership. `mediamtx-operator` must
-reconcile MediaMTX access from those lists when the Core projection contract
-and provisioning are implemented. The integration will issue passwords for
-MediaMTX streams. The deployed `mediamtx-operator` creates human UserBindings
-only. TAKServer connection work remains deferred.
+lists on the User resource supply membership. The callback fetches the User
+on each request and reads `superadmin` from `status.roles`. The password and
+approval checks also apply to superadmins. TAKServer connection work remains deferred.
+
+## Callsign authorization checkpoint
+
+The media username is the callsign and User resource name. The callback checks
+the password in a UID-pinned Secret. Normal Users can read any path and publish
+to their exact callsign path. Superadmins can use any supported path and
+control action. No `mediamtx-user` or `mediamtx-share` Role is required.
+
+The callback runs beside `mediamtx-operator`. Its private Service uses HTTPS
+with a namespace-local cert-manager CA. The MediaMTX Pod mounts only the public
+CA certificate. NetworkPolicy permits only MediaMTX to reach callback port
+9443. The package leaves the MediaMTX control listeners disabled.
+
+The package was deployed to `kind-opendefence-dev`. Both Deployments became
+ready. Live checks verified ordinary read and own-path publish access,
+other-path denial, the projected `superadmin` override, wrong-password denial,
+Role removal, and revocation. The HLS listener returned 401 for a wrong
+password, 404 for an authorized path with no publisher, and 401 after revocation.
+This proves MediaMTX reached the HTTPS callback with certificate verification.
+The test wrote User status directly, without `core-operator`.
+Approved fixtures `mtxauth1791719991` and `mtxauth1791720032` remain revoked.
+Their password Secrets were removed. See [live results](m2-user-auth-results.json).
+
+The callback needs the memory-backed `/tmp` mount to start Cloudcoil with a
+read-only root filesystem. The overlay supplies this mount to both containers.
+The callback requires a restart after its TLS certificate renews.
+Automated certificate reload and session termination remain pending.
+Kind uses `kindnet`, which does not enforce NetworkPolicy.
+
+`task check` passed Ruff, strict Pyrefly, and 252 tests. All applicable
+pre-commit checks passed. `task package:check` passed Zarf lint and both overlay
+renders. The final ARM64 package built and upgraded the local deployment.
+The required ponytail-audit found no unresolved defect in this change.
+The existing malformed-User watch limit remains documented in the
+[manual test guide](m2-operator.md#test-with-kubectl-without-core-operator).
+
+The checkpoints below record earlier implementations and their tests.
+Their effective-policy schema gates do not apply to the callsign callback.
 
 ## MediaMTX package checkpoint
 
@@ -562,8 +598,8 @@ for the requested `gpt-6.1-sol / high` setting. Independent session metadata
 was not available. Only the independent policy slice and its protocol proof
 were implemented while the external contracts remain unresolved.
 
-M2 is not fully implemented. The remaining work needs the external decisions
-below. Before a later transition to M3, follow plan section 13 and confirm
+M2 is not fully implemented. The remaining work includes credential delivery
+and session cleanup. Before a later transition to M3, follow plan section 13 and confirm
 `gpt-6-astra / high`. No M3 review or model substitution is claimed here.
 
 ## Remaining work and limits
@@ -576,19 +612,17 @@ The original adapter result retains its reviewed Git dependency identity. There 
 inheritance algorithm or user database.
 
 Binding ownership/schema and the integration's injected-header responsibility
-are resolved by the user's M2 clarification. Core must project effective Roles,
-identity state, approval deadlines, and revision data into each User. The
-installed Core model library does not define that projection. `mediamtx-operator`
-will read the CRD projection, whether `core-operator` or a test fixture wrote it.
-No fallback authority is assumed. Core owns
+are resolved by the user's M2 clarification. Current User approval, revocation,
+callsign, and projected `superadmin` fields are sufficient for new media
+admission. No new Core schema gates this implementation. Core owns
 certificate activation; media sessions are not activation evidence. Validate
 header stripping and trusted-only ingress in deployment; do not build ForwardAuth here.
 
 The internal reservation ledger and grant Secret adapter have unit and live
 Kubernetes proof. They can reserve, create, revoke, drain, and prune grants.
-No production caller issues credentials or runs recovery and pruning. Grant
-issuance still needs the Core projection, the public API, and MediaMTX control
-access. Sharing is reserved for a later route.
+The callsign flow uses per-User passwords instead of scoped grant usernames.
+The older grant adapters remain separate. Public credential delivery,
+session removal, and any later sharing route remain integration work.
 
 HTTP prefix routing needs a base-approved response rewrite or another agreed
 route contract. Strict deadline enforcement during callback, `mediamtx-operator`
@@ -599,9 +633,9 @@ TAK-specific support stays deferred until the sibling TAK tasks are complete.
 This includes TAK video XML and cross-repository integration. Existing TAK names
 in the draft API do not advertise runtime support.
 
-`mediamtx-operator` and a deny-by-default MediaMTX server are
-deployed locally. Stream provisioning and the public API are not implemented.
-Bindings stay `Synced=False` while those dependencies remain open. Core policy
+The packaged `mediamtx-operator`, HTTPS callback, and MediaMTX server are
+deployed locally with callsign/password authorization. Bindings stay `Synced=False`
+while credential delivery and session cleanup remain incomplete. Core policy
 provenance, real RTMPS, SRT, WebRTC/ICE and MoQ clients, Core policy and
 MediaMTX provisioning faults, trusted ingress, NetworkPolicy enforcement,
 offline installation, AMD64, and hosted CI execution are not checked.

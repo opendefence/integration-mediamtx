@@ -19,6 +19,9 @@ Read [README.md](README.md) and [implementation status](docs/implementation-stat
 - Treat a User certificate as identity proof only. It grants no Role or Group
   membership. Use the projected User status lists when `mediamtx-operator`
   reconciles MediaMTX access according to this integration's Role meanings.
+- Normal media access needs a password and the callsign path rules. Do not
+  require a MediaMTX Role. Read `superadmin` from the current `User.status.roles`
+  for the override. The media username is the User resource name and callsign.
 - Keep approved Users as permanent records. If `spec.approvedAt` is set, revoke
   the User with `spec.revokedAt`; do not delete or recreate that User. Use only
   unapproved Users for tests that delete or recreate User resources.

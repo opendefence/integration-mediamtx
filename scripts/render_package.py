@@ -25,7 +25,10 @@ def render() -> str:
         "runAsGroup": 65532,
         "seccompProfile": {"type": "RuntimeDefault"},
     }
-    pod["volumes"] = [{"name": "runtime-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": "16Mi"}}]
+    pod["volumes"] = [
+        {"name": "runtime-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": "16Mi"}},
+        {"name": "auth-tls", "secret": {"secretName": "mediamtx-auth-tls"}},  # pragma: allowlist secret
+    ]
     container = pod["containers"][0]
     container.update(
         volumeMounts=[{"name": "runtime-tmp", "mountPath": "/tmp"}],  # nosec B108 # Pod-only memory volume.
@@ -38,6 +41,24 @@ def render() -> str:
             "readOnlyRootFilesystem": True,
             "capabilities": {"drop": ["ALL"]},
         },
+    )
+    pod["containers"].append(
+        {
+            "name": "auth",
+            "image": image,
+            "command": ["mediamtx-auth"],
+            "args": ["--host", "0.0.0.0", "--tls-cert", "/tls/tls.crt", "--tls-key", "/tls/tls.key"],  # nosec B104
+            "env": container["env"],
+            "ports": [{"name": "auth", "containerPort": 9443}],
+            "volumeMounts": [
+                {"name": "auth-tls", "mountPath": "/tls", "readOnly": True},
+                {"name": "runtime-tmp", "mountPath": "/tmp"},  # nosec B108 # Pod-only memory volume.
+            ],
+            "readinessProbe": {"tcpSocket": {"port": "auth"}},
+            "livenessProbe": {"tcpSocket": {"port": "auth"}},
+            "resources": {"requests": {"cpu": "50m", "memory": "64Mi"}, "limits": {"memory": "256Mi"}},
+            "securityContext": container["securityContext"],
+        }
     )
     generated = yaml.safe_dump_all(documents, sort_keys=False)
     generated = generated.replace(f"namespace: {NAMESPACE}", "namespace: {{ .Values.namespace }}")

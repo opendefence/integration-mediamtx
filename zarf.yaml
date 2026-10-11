@@ -2,12 +2,19 @@ kind: ZarfPackageConfig
 metadata:
   name: integration-mediamtx
   version: 0.1.0
-  description: OpenDefence MediaMTX server and binding operator
+  description: OpenDefence MediaMTX server and credential operator
 values:
   files:
     - values/values.yaml
   schema: values/values.schema.json
 components:
+  - name: auth-tls
+    required: true
+    manifests:
+      - name: auth-tls
+        template: true
+        files:
+          - manifests/auth/auth.yaml.tmpl
   - name: operator
     required: true
     imageArchives:

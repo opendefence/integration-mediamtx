@@ -14,8 +14,9 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     image = f"zarf.internal/opendefence/integration-mediamtx:{project['project']['version']}"
     assert package["metadata"]["version"] == project["project"]["version"]
-    assert package["components"][0]["imageArchives"][0]["images"] == [image]
-    template = (ROOT / package["components"][0]["manifests"][0]["files"][0]).read_text()
+    component = next(item for item in package["components"] if item["name"] == "operator")
+    assert component["imageArchives"][0]["images"] == [image]
+    template = (ROOT / component["manifests"][0]["files"][0]).read_text()
     for values_file in ("values/values.yaml", "values/local-dev.yaml"):
         namespace = yaml.safe_load((ROOT / values_file).read_text())["namespace"]
         documents = list(yaml.safe_load_all(template.replace(NAMESPACE_TEMPLATE, namespace)))
@@ -30,12 +31,27 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
         pod = deployment["spec"]["template"]["spec"]
         container = pod["containers"][0]
         assert container["image"] == image
-        assert pod["volumes"] == [{"name": "runtime-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": "16Mi"}}]
+        assert pod["volumes"] == [
+            {"name": "runtime-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": "16Mi"}},
+            {"name": "auth-tls", "secret": {"secretName": "mediamtx-auth-tls"}},  # pragma: allowlist secret
+        ]
         assert container["volumeMounts"] == [
             {"name": "runtime-tmp", "mountPath": "/tmp"}  # nosec B108 # Pod mount, not a host path.
         ]
         assert container["env"] == [
             {"name": "CLOUDCOIL_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}
+        ]
+        auth = pod["containers"][1]
+        assert auth["command"] == ["mediamtx-auth"] and auth["image"] == image
+        assert auth["env"] == container["env"]
+        assert {"name": "runtime-tmp", "mountPath": "/tmp"} in auth["volumeMounts"]  # nosec B108
+        assert auth["args"] == [  # nosec B104 # Pod listener fixture.
+            "--host",
+            "0.0.0.0",
+            "--tls-cert",
+            "/tls/tls.crt",
+            "--tls-key",
+            "/tls/tls.key",
         ]
 
 
@@ -50,7 +66,12 @@ def test_media_network_policy_keeps_control_private_and_matches_protocol_ports()
         assert {policy["metadata"]["namespace"] for policy in policies} == {namespace}
         operator, media = policies
         assert operator["spec"]["podSelector"]["matchLabels"] == {"app.kubernetes.io/name": "mediamtx-operator"}
-        assert operator["spec"]["ingress"] == []
+        assert operator["spec"]["ingress"] == [
+            {
+                "from": [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "mediamtx"}}}],
+                "ports": [{"protocol": "TCP", "port": 9443}],
+            }
+        ]
         assert media["spec"]["podSelector"]["matchLabels"] == {"app.kubernetes.io/name": "mediamtx"}
         public, control = media["spec"]["ingress"]
         assert public["from"] == [
@@ -93,6 +114,10 @@ def test_media_component_bundles_a_fail_closed_server_in_the_selected_namespace(
         assert documents["Certificate"]["spec"]["dnsNames"] == [values["domain"]]
         config = yaml.safe_load(documents["ConfigMap"]["data"]["mediamtx.yml"])
         assert config["authInternalUsers"] == []
+        assert config["authMethod"] == "http" and config["authHTTPExclude"] == []
+        assert (
+            config["authHTTPAddress"] == f"https://mediamtx-auth.{values['namespace']}.svc:9443/internal/mediamtx/auth"
+        )
         assert config["api"] is False and config["metrics"] is False and config["pprof"] is False
         assert config["moq"] is True
         assert config["moqServerKey"] == "/tls/tls.key"
@@ -102,6 +127,9 @@ def test_media_component_bundles_a_fail_closed_server_in_the_selected_namespace(
         assert deployment["metadata"]["labels"] == {"app.kubernetes.io/name": "mediamtx"}
         assert deployment["spec"]["containers"][0]["image"] == image
         assert deployment["spec"]["containers"][0]["command"] == ["/mediamtx", "/config/mediamtx.yml"]
+        assert deployment["spec"]["containers"][0]["env"] == [{"name": "SSL_CERT_FILE", "value": "/auth-ca/ca.crt"}]
+        ca = next(volume for volume in deployment["spec"]["volumes"] if volume["name"] == "auth-ca")
+        assert ca["secret"]["items"] == [{"key": "tls.crt", "path": "ca.crt"}]
         assert documents["Service"]["spec"]["selector"] == deployment["metadata"]["labels"]
         service_ports = documents["Service"]["spec"]["ports"]
         assert {(port["protocol"], port["port"]) for port in service_ports} == {
@@ -115,3 +143,19 @@ def test_media_component_bundles_a_fail_closed_server_in_the_selected_namespace(
             ("UDP", 8892),
             ("UDP", 8893),
         }
+
+
+def test_callback_certificate_covers_the_private_service_in_each_overlay() -> None:
+    template = (ROOT / "manifests/auth/auth.yaml.tmpl").read_text()
+    for values_file in ("values/values.yaml", "values/local-dev.yaml"):
+        namespace = yaml.safe_load((ROOT / values_file).read_text())["namespace"]
+        documents = list(yaml.safe_load_all(template.replace(NAMESPACE_TEMPLATE, namespace)))
+        assert {item["metadata"]["namespace"] for item in documents} == {namespace}
+        certificates = {item["metadata"]["name"]: item for item in documents if item["kind"] == "Certificate"}
+        assert certificates["mediamtx-auth-ca"]["spec"]["isCA"] is True
+        tls = certificates["mediamtx-auth-tls"]["spec"]
+        assert tls["dnsNames"] == [f"mediamtx-auth.{namespace}.svc"]
+        assert tls["issuerRef"]["name"] == "mediamtx-auth-ca"
+        service = next(item for item in documents if item["kind"] == "Service")
+        assert service["spec"]["selector"] == {"app.kubernetes.io/name": "mediamtx-operator"}
+        assert service["spec"]["ports"] == [{"name": "https", "port": 9443, "targetPort": "auth"}]
