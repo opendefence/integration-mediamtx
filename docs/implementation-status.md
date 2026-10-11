@@ -1,8 +1,33 @@
 # Implementation status
 
 Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator tested.
-MediaMTX provisioning and public API authorization need Core's effective-policy contract.
+MediaMTX provisioning and public API authorization need Core's effective Role
+projection and the MediaMTX deployment.
 M3 has not started.
+
+## Effective Role ownership and live User watch
+
+Date: 2026-10-11. Core will project effective Role and Group membership into
+each User object. Core does not decide MediaMTX permissions. This integration
+defines `mediamtx-user` as read-all and publish-own, and reserves
+`mediamtx-share` for a later sharing route. The global `superadmin` Role grants
+all media access and restricted control actions. The
+[Core handoff](core-media-policy-handoff.md) now asks only for general User,
+effective Role, resolution, and freshness data.
+
+The policy module now exposes `grant_remains_authorized()` so later User
+reconciliation can identify sessions that must end. A stale projection also
+denies admission, but it does not prove permanent Role loss. The production
+operator does not yet consume a Core effective Role projection or drain grants.
+`task check` passed Ruff, strict Pyrefly, and 233 tests.
+
+On the shared `kind-opendefence-dev` cluster, a local operator created a
+UserBinding for disposable User `mtxprobea11` in disposable namespace
+`mtxprobe-20261011`. A status-only User update caused the operator to clear a
+temporary `Synced=True` fixture. No Core controller was running, so the probe
+patched User status directly. Both fixture resources and the local operator
+were removed. This proves watch delivery and binding reconciliation, not Role
+inheritance or media authorization.
 
 ## Grant record checkpoint
 
@@ -18,23 +43,23 @@ callback was not rerun. No user credential is issued in production.
 
 ## Core User projection decision
 
-Date: 2026-10-11. Core will reconcile effective Role, Group, and other policy
-changes into each User object. This operator already watches Users and maps
-their events to UID-pinned bindings. The current Core User model has no
-effective media-policy fields, so the running operator still reports
-`Synced=False` and cannot authorize public access. The
-[Core handoff](core-media-policy-handoff.md) now asks for a versioned User status
-projection and a bounded freshness rule instead of a separate policy endpoint.
+Date: 2026-10-11. Core will reconcile effective Role and Group changes into
+each User object. This operator already watches Users and maps their events to
+UID-pinned bindings. The current Core User model lists only direct Roles, so
+the running operator still reports `Synced=False` and cannot authorize public
+access. The [Core handoff](core-media-policy-handoff.md) asks for a versioned,
+bounded-freshness User status projection, not a media permission endpoint.
 
 ## Callsign path and role decision
 
 Date: 2026-10-11. The user selected the legacy callsign path rule for the first
 media role: normal media users can read all supported streams and publish only
-under their own callsign. Core will support integration-defined roles and a
-global `superadmin` role with all media permissions. There is no `productuser`
-type. The pure policy now uses `live/{tool}/{callsign}` with exact callsign
+under their own callsign. Core will support integration-defined Roles and a
+global `superadmin` Role. This integration decides what those Roles permit.
+There is no `productuser` type. The pure policy uses
+`live/{tool}/{callsign}` with exact callsign
 segments. Grants and bindings still use the immutable User UID. The
-[Core media-policy handoff](core-media-policy-handoff.md) records the required
+[Core User projection handoff](core-media-policy-handoff.md) records the required
 Core role and freshness contract. Earlier UUID-path design text in the original
 plan and API draft is historical.
 `task check` passed Ruff, strict Pyrefly, and 228 tests. All pre-commit checks

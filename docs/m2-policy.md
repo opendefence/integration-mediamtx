@@ -48,6 +48,15 @@ at least 128 random bits as required by M1.
 - For effective `superadmin`, any supported media path and no separate MediaMTX
   assignment. Grant scope and account checks still apply.
 
+`grant_remains_authorized()` applies the same grant and policy checks without
+a callback request. Reconciliation can use it to decide whether a session
+must end after a User projection update. A stale projection also returns
+false; that alone does not prove a permanent Role loss. The function does not
+revoke or drain a grant by itself.
+The integration defines Role meanings. Core must project effective Role
+membership, including Group-derived Roles, before a production adapter can
+create these policy values.
+
 There is no grant-scope shortcut for `superadmin`. A read grant cannot gain publishing or control
 access from wider principal permissions. Changing effective policy denies access
 without changing the User ID. A new binding UID invalidates an old binding's

@@ -6,7 +6,7 @@ binding adapter. It reads the current User from Kubernetes before creation;
 cached identity only selects work. Recreated Users get separate UID-pinned
 bindings. It does not change Core Users, resolve roles or issue credentials.
 
-Provisioning remains incomplete while Core's effective-policy contract and
+Provisioning remains incomplete while Core's effective Role projection and
 MediaMTX configuration reconciliation are pending. The operator sets only
 `Synced=False` and the observed generation. It clears former readiness on owned
 bindings, including orphaned bindings, without retargeting or deleting them.
@@ -15,9 +15,9 @@ for explicit lifecycle work. There is no finalizer or credential cleanup yet.
 
 User changes and binding changes enqueue reconciliation. Startup replays both
 resource lists; successful passes schedule another observation after 60 seconds.
-Core plans to write effective policy changes into the User object. A status-only
-User update maps to the same binding key. The current shared User model has no
-effective media-policy fields, so this operator still reports provisioning as
+Core plans to write effective Role and Group changes into the User object. A
+status-only User update maps to the same binding key. The current shared User
+model has only direct Roles, so this operator still reports provisioning as
 pending after that event.
 Conflicts and dependency failures propagate to Cloudcoil's retry queue. Each
 attempt reads a new binding before its UID/resource-version guarded status

@@ -90,7 +90,30 @@ class MediaGrant:
             raise ValueError("Invalid grant revocation")
 
 
-def authorize_media(  # noqa: PLR0911 - Keep each admission requirement explicit.
+def grant_remains_authorized(  # noqa: PLR0911 - Keep each grant requirement explicit for reconciliation.
+    grant: MediaGrant | None, policy: EffectivePolicy | None, *, now: datetime
+) -> bool:
+    """Check a stored grant against current policy before retaining its sessions."""
+    if not isinstance(grant, MediaGrant) or not isinstance(policy, EffectivePolicy) or not _aware(now):
+        return False
+    if grant.revoked_at is not None or not grant.created_at <= now < grant.expires_at:
+        return False
+    if grant.subject_id != policy.subject_id or grant.binding_uid != policy.binding_uid:
+        return False
+    if (
+        not policy.approved
+        or not (policy.assigned or policy.superadmin)
+        or not policy.evaluated_at <= now < policy.valid_until
+    ):
+        return False
+    if policy.approval_deadline is not None and now >= policy.approval_deadline:
+        return False
+    if grant.action == "read":
+        return policy.superadmin or policy.read_all or grant.stream in policy.read_paths
+    return policy.superadmin or (policy.publish_own and grant.stream.owner_callsign == policy.callsign)
+
+
+def authorize_media(
     payload: object,
     grant: MediaGrant | None,
     policy: EffectivePolicy | None,
@@ -114,18 +137,4 @@ def authorize_media(  # noqa: PLR0911 - Keep each admission requirement explicit
     protocol = _PUBLIC_PROTOCOL.get(request.protocol)
     if protocol not in grant.protocols or protocol not in enabled_protocols:
         return False
-    if grant.revoked_at is not None or not grant.created_at <= now < grant.expires_at:
-        return False
-    if grant.subject_id != policy.subject_id or grant.binding_uid != policy.binding_uid:
-        return False
-    if (
-        not policy.approved
-        or not (policy.assigned or policy.superadmin)
-        or not policy.evaluated_at <= now < policy.valid_until
-    ):
-        return False
-    if policy.approval_deadline is not None and now >= policy.approval_deadline:
-        return False
-    if request.action == "read":
-        return policy.superadmin or policy.read_all or stream in policy.read_paths
-    return policy.superadmin or (policy.publish_own and stream.owner_callsign == policy.callsign)
+    return grant_remains_authorized(grant, policy, now=now)

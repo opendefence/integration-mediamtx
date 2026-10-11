@@ -9,7 +9,12 @@ import pytest
 
 from opendefence_integration_mediamtx.auth import AuthRequest
 from opendefence_integration_mediamtx.paths import StreamPath
-from opendefence_integration_mediamtx.policy import EffectivePolicy, MediaGrant, authorize_media
+from opendefence_integration_mediamtx.policy import (
+    EffectivePolicy,
+    MediaGrant,
+    authorize_media,
+    grant_remains_authorized,
+)
 
 NOW = datetime(2026, 10, 10, 12, tzinfo=UTC)
 OWNER = UUID(int=1)
@@ -170,6 +175,15 @@ def test_group_policy_change_does_not_need_a_user_identity_change() -> None:
     changed = replace(POLICY, revision="policy-2", read_all=False)
     assert changed.subject_id == POLICY.subject_id
     assert not allowed(policy=changed)
+
+
+def test_user_projection_change_denies_existing_grant() -> None:
+    assert grant_remains_authorized(GRANT, POLICY, now=NOW)
+    assert not grant_remains_authorized(GRANT, replace(POLICY, assigned=False), now=NOW)
+    assert not grant_remains_authorized(GRANT, replace(POLICY, read_all=False), now=NOW)
+    assert not grant_remains_authorized(GRANT, replace(POLICY, binding_uid=UUID(int=11)), now=NOW)
+    assert not grant_remains_authorized(GRANT, None, now=NOW)
+    assert not grant_remains_authorized(replace(GRANT, revoked_at=NOW), POLICY, now=NOW)
 
 
 def test_each_time_boundary_is_exclusive() -> None:

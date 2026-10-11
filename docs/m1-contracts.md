@@ -6,15 +6,17 @@ Core review, updated with the user's M2 clarification. They are not a running AP
 
 Decision update, 2026-10-11: the user selected callsign-based media paths and
 the legacy read-all, publish-own path rule for normal media users. Core will let
-integrations define roles. Its global `superadmin` role grants all media access.
+integrations define Roles and will project effective Role membership onto the
+User. This integration defines what `mediamtx-user` permits. Core's global
+`superadmin` Role grants all media access in this integration.
 There is no `productuser` type. See the [current Core handoff](core-media-policy-handoff.md).
 This update replaces the UUID-based media path and permission assumptions below.
 User and grant identity still use the immutable Core User UID.
 Only current `superadmin` Users and this integration's own service identity may
 use MediaMTX `api`, `metrics`, or `pprof`. Ordinary media grants cannot use them.
-Core's operator will project effective policy into User status after Role,
-Group, and assignment changes. This integration already watches User events.
-The projection schema and bounded freshness fields are still pending.
+Core's operator will project effective Roles and Groups into the User after
+Role, Group, and assignment changes. This integration already watches User
+events. The effective Role schema and bounded freshness fields are pending.
 
 ## Core evidence
 
@@ -48,37 +50,37 @@ callsign or silently introduce a persistent UUID field. Core must supply a
 mapping before grants are restored against recreated Users. Certificate CN
 encoding and certificate activation remain Core decisions.
 
-For isolated policy code, use `live/{tool}/{compact-user-id}` with tools `icu`,
-`gopro`, `uas` and `ipcam`. Match exact decoded owner and path segments. Reject
-encoded separators, empty or dot segments, noncanonical IDs and trailing slashes.
-Keep the 192-character limit in the draft. Do not enable subordinate channels
-until an actual client needs them. A versioned stream ID encodes the canonical
-path; decoding it never grants access. The original M1 spike's UUID-text paths
-are fixtures, not a commitment to legacy path compatibility. M2 uses compact
-paths in the shared parser and protocol runner.
+The current path is `live/{tool}/{callsign}` with tools `icu`, `gopro`, `uas`
+and `ipcam`. Match exact owner and path segments. Reject encoded separators,
+empty or dot segments, invalid callsigns and trailing slashes. Do not enable
+subordinate channels until a client needs them. A versioned stream ID encodes
+the canonical path; decoding it never grants access. The original M1 spike's
+UUID-text paths and the draft's compact UUID paths are historical fixtures.
 
 The shared policy function needs these semantics, without assuming CRD fields:
 
 | Input | Required meaning |
 | --- | --- |
-| Subject and binding | Immutable subject ID, approved account and current integration assignment. |
-| Effective access | Core-resolved read scopes, own-stream publish permission and sharing permission. No local role inheritance. |
-| Revision | Opaque revision that covers User, group ancestry, roles and assignment changes. |
+| Subject and binding | Immutable subject ID, approved account and current UserBinding UID. An effective MediaMTX Role or `superadmin` supplies integration assignment. |
+| Effective Roles | Core-resolved direct and Group-derived Role names and UIDs. This integration maps them to read, publish, sharing and control permissions. No local Group inheritance. |
+| Revision | Opaque revision that covers User, Group ancestry and Role assignment changes. |
 | Freshness | Authoritative evaluation time and expiry, or a bounded fresh authorization read. A watch connection alone is insufficient. |
-| Approval deadline | Absolute access deadline, or an explicit Core policy with no such deadline. Missing data is not unlimited approval. |
+| Account deadline | Absolute general account deadline if Core has one, or an explicit statement that Core has none. Missing data is not unlimited approval. |
 
-Deny unknown, missing, malformed or stale policy. A media decision intersects
-fresh Core access with the grant's exact stream, one action, allowed protocols,
-expiry and persisted revocation state. Equality with any deadline means expired.
+Deny unknown, missing, malformed or stale Role projections. A media decision
+intersects this integration's Role rules with the grant's exact stream, one
+action, allowed protocols, expiry and persisted revocation state. Equality
+with any deadline means expired.
 Use injected time in pure policy tests. Do not invent a clock-skew allowance.
 The production adapter must settle clock tolerance and freshness with Core.
 Keep the plan's 15-second freshness and 30-second removal targets as unverified
 acceptance targets.
 
 The integration operator is the sole integration-status writer. The API writes
-grant intent to Secrets. Core policy supplies access and assignment. Readiness
-must match the binding generation, policy revision and current MediaMTX instance
-and configuration. Old `Synced=True` is insufficient.
+grant intent to Secrets. Core supplies effective Roles; this integration
+decides access and assignment from them. Readiness must match the binding
+generation, Role projection revision, and current MediaMTX instance and
+configuration. Old `Synced=True` is insufficient.
 
 The user supplied `../opendefence_core_crds.yaml` during M2, SHA-256
 `105bede6c1dd9f77c9effb6d8525d5882822a6ca67c75f14f2f59f64f106a747`.

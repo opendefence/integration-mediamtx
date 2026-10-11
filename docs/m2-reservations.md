@@ -23,4 +23,5 @@ This adapter does not issue credentials. The separate
 [grant record adapter](m2-grants.md) stores individual grant Secrets. Cleanup
 after the retry window and the public API still need implementation. The
 operator has no Secret permissions yet. Do not use these adapters for
-production issuance until those parts and Core's User projection are ready.
+production issuance until those parts and Core's effective Role projection are
+ready.

@@ -111,9 +111,10 @@ replacement checks with Cloudcoil 0.8.0 and `lib-opendefence-core` 0.2.1+261010.
 Its owned cluster, namespace, User and installed CRDs were removed; sibling
 clusters remained. The earlier result record remains historical evidence.
 
-No effective-policy endpoint or revision/expiry projection is defined in these
+No complete effective Role or bounded-freshness projection is defined in these
 CRDs or the inspected Core scaffold. Production media authorization still needs
-that contract. The existing pure policy function remains fail-closed on absent
-or stale policy. Ingress, production RBAC, grant persistence and the public API
-are not validated by this adapter probe. The separate operator probe uses
+that Core data and this integration's Role mapping. The existing pure policy
+function remains fail-closed on absent or stale input. Ingress, production
+RBAC, grant persistence, and the public API are not validated by this adapter
+probe. The separate operator probe uses
 `--operator`. TAK remains deferred.

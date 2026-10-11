@@ -2,8 +2,8 @@
 
 The internal grant adapter stores one Kubernetes Secret for each reserved media
 grant. It does not issue a grant to a User. A caller must first obtain a stored
-reservation and check the current Core User projection before it creates a
-grant record.
+reservation and apply this integration's Role rules to a fresh Core User
+projection before it creates a grant record.
 
 `create_grant_record` uses the reservation's grant ID and lifetime. It stores
 the grant's subject, binding, stream, action, and protocols with the
@@ -32,5 +32,5 @@ The unit tests cover concurrent creation, User-scoped listing, a changed
 request, invalid stored data, guarded revocation, conflict retry, and retry
 after revocation. The operator still has no Secret permission. There is no
 production credential issuer, HTTP callback, or grant cleanup loop. Core's
-User projection schema is still required before this adapter can serve public
-access.
+effective Role projection is still required before this adapter can serve
+public access.

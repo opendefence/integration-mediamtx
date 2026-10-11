@@ -1,197 +1,148 @@
-# Core media-policy contract: developer handoff
+# Core User projection: developer handoff
 
-Date: 2026-10-11. This handoff describes the Core input that the MediaMTX
-integration needs before it can grant public media access. It describes required
-behavior. It does not prescribe a Core API route or custom resource.
+Date: 2026-10-11. This handoff describes the Core data that the MediaMTX
+integration needs. Core owns User identity, account state, and effective Role
+and Group membership. Core does not decide what a MediaMTX role permits. This
+integration owns those meanings and the media access decision.
 
-## The gap
+## Current gap
 
-Core identifies a User and records its direct Role and Group references. Core
-also observes UserBindings that integrations create. The current Role model has
-a display name but no permissions. The current User status has resolved
-references, but no effective media policy. The models do not say which streams
-a User may read, whether it may publish, whether it may share a read credential,
-or whether it is assigned to this integration.
-Core plans to let integrations define their own roles. Core will also always
-have a global `superadmin` role. Core's operator will reconcile role, Group, and
-other policy changes into a projection on the User object. The integration's
-existing User watch will then enqueue that User's binding. The current Core
-model does not yet define the projection fields.
+The current Core User status lists direct Roles and Groups. Its `roles` field
+does not include Roles inherited from Groups. Core plans to reconcile changes
+to Roles, Groups, assignments, and account state into each User object. The
+integration already watches Users. A User update queues its UserBinding for
+reconciliation.
 
-A UserBinding is an integration-owned provisioning observation. The integration
-creates it and writes its `Synced` condition. Core watches it. A binding can be
-`Synced=True` while the User has no permission to use media. Core can also report
-`BindingsSynced=True` when there are no bindings. Neither condition is an
-assignment or an authorization decision.
+The current User model has no complete effective Role set or bounded freshness
+rule. The integration cannot treat direct Role references as the complete
+access decision. It cannot safely issue public media credentials, admit live
+MediaMTX connections, or mark media provisioning complete from those fields.
+Its running operator keeps `UserBinding.status` at `Synced=False`.
 
-Core's `approvedAt` records when approval happened. It is not an access
-deadline. `revokedAt` records User revocation. These fields do not provide a
-complete media-policy result or a freshness limit.
+A UserBinding is an integration-owned provisioning observation. Its existence
+or `Synced=True` condition does not assign a Role. Core can report
+`BindingsSynced=True` when a User has no bindings. Neither condition grants
+media access.
 
-The integration has a local `EffectivePolicy` type and tests for media admission.
-That type is a test input, not a Core API message or custom resource. The tests
-supply policy fixtures. They do not prove that Core authorized those values or
-that a live policy cache is current.
+## Data Core must project
 
-**Result:** The integration can create a UserBinding and report pending work. It
-cannot safely mark media provisioning complete, issue public media credentials,
-authorize public grant and profile API calls, or accept MediaMTX authentication
-from real users until it can obtain and verify effective Core media policy.
-Infrastructure and deny-by-default configuration can proceed independently.
+Core must publish the following general User data. It does not need to publish
+read, publish, share, or MediaMTX control permissions.
 
-| Integration work | Current state and missing input |
+| Data | Required meaning |
 | --- | --- |
-| Create a UserBinding | Available now. The operator creates a binding and keeps `Synced=False`. |
-| Complete provisioning | Needs current Core assignment and permission decisions, then a matching MediaMTX configuration. A binding alone cannot make `Synced=True` meaningful. |
-| Serve the proposed `/me` and `/streams` routes | Needs current account state, assignment, and effective read scope. These public routes are not deployed yet. |
-| Issue or return a media grant or connection profile | Needs a fresh decision for the exact stream and action. Sharing a reader grant also needs sharing permission. The public API is not deployed yet. |
-| Admit a MediaMTX connection | Needs fresh Core policy as well as the integration's stored grant, binding UID, expiry, and revocation checks. |
+| User identity | `User.metadata.uid` is the immutable subject. A recreated User gets a new UID, even if it has the same callsign. |
+| Callsign | The current User callsign. The integration uses it in media paths, not as a credential identity. |
+| Account state | Whether the User is approved, pending, revoked, or deleting. A revoked or unapproved User has no media access. |
+| Effective Roles | Names and UIDs of all current Roles, including direct and Group-derived Roles. Include the global `superadmin` Role. |
+| Resolution state | A clear result for missing or unresolved Role and Group references. The integration denies access while the effective set is incomplete. |
+| Revision | A change marker that covers all inputs to the effective set, including Group ancestry and Role assignments. |
+| Freshness | An evaluation time and expiry, or another bounded rule that lets the integration reject a stale projection. A watch connection alone cannot prove that Core is still reconciling. |
+| Account deadline | State whether Core has a general account access deadline. If it does, project the absolute deadline or an explicit no-deadline value. This is separate from a media grant's expiry. |
 
-## Required decision for each User
+The integration needs the effective Role names to apply its own Role meanings.
+It also needs the UID and revision to detect replacement or stale references.
+Core must define how an integration registers its Roles. It must state when a
+new User projection is written after a direct Role edit, Group Role edit,
+Group ancestry edit, approval change, or revocation. Core does not need to
+assign a User to MediaMTX through a separate permission field: an effective
+MediaMTX Role, or `superadmin`, supplies that result here.
 
-Core must provide the following meanings in a versioned projection on User
-status. The integration will read that User and watch it for changes.
+## MediaMTX Role meanings owned by this integration
 
-| Input | Required meaning |
-| --- | --- |
-| Subject | The immutable Kubernetes `User.metadata.uid`. A callsign or User name alone is not enough because a deleted User can be recreated with the same name. |
-| Callsign | The current Core User callsign for media paths. A grant still belongs to the immutable User UID. |
-| Account state | Whether the User is currently approved and not revoked. Pending, deleted, unresolved, or revoked Users cannot use media. |
-| Assignment | Whether Core currently assigns this User to the MediaMTX integration, or the User has the global `superadmin` role. Binding existence and `Synced` do not supply this decision. |
-| Read scope | A normal media user may read every supported media path. `superadmin` may also read every supported media path. |
-| Publish scope | A normal media user may publish under `live/{tool}/{its-callsign}`. `superadmin` may publish under every supported media path. |
-| Sharing | Whether the User can create a transferable read credential. This is separate from permission to read a stream. `superadmin` can share; other users need an explicit role permission. A grant label is not permission. |
-| Control actions | For User requests, Core must identify the current `superadmin` role. Only that User or this integration's own service identity may use MediaMTX `api`, `metrics`, or `pprof`. All other Users and media grants must be denied. |
-| Global role | Whether the User currently has the effective `superadmin` role. Core must resolve direct and Group-derived roles. |
-| Policy version | A revision or equivalent change signal that covers all policy inputs, including User, Group ancestry, Role, permission, and assignment changes. The integration needs a way to reject or refresh old decisions. |
-| Freshness | An authoritative evaluation time and expiry, or a bounded fresh decision for each use. A live watch connection alone does not prove that an old value is current. |
-| Access deadline | An absolute time after which access ends, or an explicit statement that no deadline applies. A missing field must not mean unlimited approval by accident. |
+The first integration Role is `mediamtx-user`. It permits reading every
+supported media path and publishing only to `live/{tool}/{own-callsign}`.
+The planned `mediamtx-share` Role permits a User who can read a stream to
+issue a transferable reader grant. It grants no media access by itself. The
+public sharing route is not implemented yet.
 
-The first MediaMTX role can use the legacy path rule: a normal media user can
-read all supported streams, and it can publish only under its own callsign.
-The canonical path in this integration is `live/{tool}/{callsign}`. The initial tools are
-`icu`, `gopro`, `uas`, and `ipcam`. Match the complete callsign segment:
-`alpha` must not match `alpha2`. Current Core requires a lowercase callsign of
-3 to 30 letters or digits. A callsign is a media path label, not the grant's
-identity. The grant keeps the User UID and UserBinding UID so a recreated User
-cannot reuse an old grant even if it has the same callsign.
-The current parser accepts exactly these three path segments. The legacy prefix
-check also accepted suffixes; add channels only when a client needs them.
+The global `superadmin` Role permits all supported media paths and sharing.
+Only a current `superadmin` User or this integration's own service identity
+may use MediaMTX `api`, `metrics`, or `pprof`. A normal media grant never
+becomes a control credential. A superadmin control credential must identify
+that User by UID and be checked against current effective Roles. The service
+identity is separate from User Roles. There is no `productuser` type.
+The MediaMTX callback receives credentials, not Core's mTLS identity. A
+username alone cannot prove a User or service identity. The integration has
+no production control-credential issuer or User control route yet.
 
-Core must define how an integration registers its roles and how direct and
-Group-derived roles produce the effective result. The integration must consume
-that result. It must not implement a second Group inheritance or Role permission
-algorithm. Core must define the deny result for missing or unresolved references
-and unknown role values. There is no `productuser` account type or general
-product credential bypass in this integration.
+The canonical path is `live/{tool}/{callsign}`. The current tools are `icu`,
+`gopro`, `uas`, and `ipcam`. Match the complete callsign segment: `alpha` must
+not match `alpha2`. Core currently requires lowercase callsigns of 3 to 30
+letters or digits. A media grant keeps the User UID and UserBinding UID, so a
+new User cannot use an old grant with the same callsign.
 
-`superadmin` grants all media permissions and access to the MediaMTX `api`,
-`metrics`, and `pprof` actions. A media credential still has one exact stream,
-action, protocol set, and expiry; it does not become a control credential.
-A superadmin control credential must be tied to that User UID and checked
-against fresh Core policy on every authorization. The integration's own service
-credential uses a separate identity and does not depend on a User role. This
-service identity is integration-owned; it is not a `productuser`. The
-MediaMTX callback receives credentials, not Core's user mTLS identity, so a
-username alone cannot prove either control identity. The integration has no
-production control-credential issuer or user control route yet. The package's
-current ingress policy permits the operator Pod to reach the private control
-port. Other network policies can add access.
-Any later superadmin route must preserve authentication at the trusted edge.
+This integration computes `EffectivePolicy` from fresh Core identity and
+effective Roles. It also checks its current UserBinding UID, exact grant
+stream, action, protocol set, expiry, and stored revocation. The local
+`EffectivePolicy` type is a semantic input for tests. It is not a Core wire
+schema. Core does not need to run the integration's path or grant logic.
 
-The integration can combine the Core result with its own current UserBinding
-UID. Core does not need to store the binding UID in its policy model. The UID
-pins grants to one binding generation. The integration also owns the exact media
-path, grant action and protocol, grant expiry, stored revocation, and MediaMTX
-configuration. A valid Core result cannot enlarge a grant's fixed scope.
+## Update delivery and freshness
 
-## User projection and freshness
+Core's operator will update the User when relevant Role, Group, or account
+inputs change. The integration watches cluster-scoped Users and maps each
+event to the User's UID-pinned binding. Startup listing and periodic
+reconciliation also queue work. The integration does not need to watch Roles
+or Groups or calculate Group inheritance.
 
-Core's operator will write the effective result to the User object whenever
-Role, Group, assignment, approval, or other policy inputs change. The existing
-integration operator watches cluster-scoped Users and maps each User event to
-its UID-pinned UserBinding. Startup listing and periodic reconciliation also
-enqueue work. The integration can inspect affected grants and sessions from
-that reconciliation. It does not need to watch Role and Group objects or run a
-second inheritance algorithm.
+Core must define the projection version, evaluation time, expiry or refresh
+rule, and behavior when a reference is unresolved. It must define a maximum
+delay from an upstream edit to the User update. Missing, malformed, incomplete,
+expired, or unavailable data denies new admission. The original plan names
+15 seconds for policy freshness and 30 seconds for denial and session removal
+as targets. These targets are not measured guarantees. The integration cannot
+remove a MediaMTX session while its control API is unavailable.
 
-The User projection still needs a schema version, an effective revision,
-evaluation time, and an expiry or another bounded freshness rule. A watch event
-proves that one update arrived; it cannot prove that Core kept reconciling while
-its operator was unavailable. Define how Core reports incomplete references and
-how the integration detects an out-of-date projection after a missed event or
-restart. Missing, malformed, expired, or unavailable policy must deny new
-admission. Agree on clock rules and the maximum allowed delay from an upstream
-Role or Group edit to a User update. The original plan sets **15 seconds for
-policy freshness** and **30 seconds for denial and session removal** as targets.
-They are not measured guarantees. The integration cannot remove a MediaMTX
-session if its control API is unavailable; that failure behavior needs a
-separate deployment decision.
-
-Core remains responsible for user mutual Transport Layer Security (mTLS)
-authentication and for injecting a verified User identifier at the trusted API
-edge. The integration consumes that header. It does not need to run Core's
-ForwardAuth service or authenticate client certificates itself. The current
-default header name is `X-OpenDefence-User-UUID`; the name can change by
-agreement. Core must strip any client-supplied copy before it injects the
-verified value.
+Core owns User mutual Transport Layer Security (mTLS) authentication. At the
+trusted API edge, Core strips any client-supplied User identity header and
+injects the verified User UUID. The integration currently accepts
+`X-OpenDefence-User-UUID` by default. It does not run ForwardAuth or inspect
+client certificates.
 
 ## Acceptance cases
 
-1. A User is approved and its binding is `Synced=True`, but it has no MediaMTX
-   role or `superadmin` role. The result denies credentials and media admission.
-2. Core assigns a normal media role to a User with callsign `alpha`. The User
-   can read supported media paths and publish to `live/icu/alpha`. It cannot
-   publish to `live/icu/alpha2` or a path for another User.
-3. A User has the effective `superadmin` role. It can read and publish on any
-   media path, even without a separate MediaMTX assignment. A media credential
-   still has its own exact stream, action, protocol, and expiry.
-4. A current `superadmin` or the integration's own service credential can use
-   `api`, `metrics`, and `pprof` when the respective endpoint is enabled. A
-   normal media user, a read or publish grant, and an expired superadmin
-   credential cannot use these actions. Removing the `superadmin` role denies
-   the User's next control request within the agreed freshness limit.
-5. A Group ancestor, Role, permission, or assignment changes without a User
-   object edit. A new decision reflects the change. An old decision expires or
-   is invalidated within the agreed freshness limit.
-6. A User loses approval, is revoked, or reaches its absolute access deadline.
-   New admission stops. The integration can identify and remove existing
-   sessions within the agreed healthy-system target.
-7. A User has no access deadline by explicit Core policy. The integration does
-   not infer this from an omitted or unreadable deadline.
-8. A User is deleted and recreated with the same callsign. The new
-   `metadata.uid` differs. Credentials for the old UID do not authorize the new
-   User. Core must define any identity-recovery mapping before old grants can
-   be restored.
-9. Core policy is stale, missing, malformed, or unavailable. New credentials
-   and media admission are denied. A recovered policy can restore access only
-   after a fresh decision and the integration's own grant checks.
-10. A User may read a stream but has no sharing permission. The User cannot
-   create a transferable reader grant. MediaMTX bearer credentials do not
-   identify the person who receives them.
+1. A User has a `Synced=True` binding but no effective MediaMTX Role or
+   `superadmin` Role. The integration denies media access.
+2. A User with callsign `alpha` has `mediamtx-user` through a direct or Group
+   assignment. The integration permits reading supported paths and publishing
+   to `live/icu/alpha`. It denies publishing to `live/icu/alpha2`.
+3. A User has only `mediamtx-share`. The integration denies media access. A
+   User with `mediamtx-user` and `mediamtx-share` can request a transferable
+   reader grant only after the sharing route exists.
+4. A User has effective `superadmin`. The integration permits any supported
+   media path without a separate MediaMTX Role. Its media grant still has one
+   stream, action, protocol set, and expiry.
+5. A Role or Group changes without an edit to User spec. Core updates the
+   effective Role projection on that User. The integration receives the User
+   update and denies or drains grants that are no longer allowed.
+6. Approval ends, a User is revoked, or a general account deadline passes.
+   New admission stops. The integration finds and removes existing sessions
+   within the agreed healthy-system target.
+7. A User is deleted and recreated with the same callsign. The new UID does
+   not authorize the old User's grants.
+8. The projection is missing, incomplete, malformed, stale, or unavailable.
+   The integration denies new credentials and media admission.
+9. A current `superadmin` or this integration's service credential may use
+   enabled `api`, `metrics`, and `pprof` actions. Normal media grants cannot.
 
 ## Requested Core handoff result
 
-Please provide the versioned User status projection schema, one allowed and one
-denied User example, the permission and assignment rules, the freshness and
-User-update rules, and contract tests for the cases above. Specify the access
-deadline representation, including an explicit no-deadline value. State which
-Core controller computes the result. Include the way integrations define roles
-and the effective `superadmin` signal. This is enough for the integration to
-implement a User projection adapter and connect its policy tests to live data.
+Please provide the versioned User status projection schema, an allowed and a
+denied User example, effective Role resolution rules, an unresolved-reference
+result, revision and freshness rules, and User-update timing. Define how
+integrations register Roles and how the global `superadmin` Role appears in
+the effective set. State whether Core has a general account deadline. Core
+does not need to define MediaMTX Role meanings or stream permissions.
 
-The current source of this gap is visible in Core's
+The current gap is visible in Core's
 [User](https://github.com/opendefence/core/blob/929149db8925881470a37281179f4829029a4354/src/lib_opendefence_core/models/v1alpha1/user.py),
 [Role](https://github.com/opendefence/core/blob/929149db8925881470a37281179f4829029a4354/src/lib_opendefence_core/models/v1alpha1/role.py),
 [Group](https://github.com/opendefence/core/blob/929149db8925881470a37281179f4829029a4354/src/lib_opendefence_core/models/v1alpha1/group.py), and
 [UserBinding](https://github.com/opendefence/core/blob/929149db8925881470a37281179f4829029a4354/src/lib_opendefence_core/models/v1alpha1/userbinding.py)
-models, and in its [API router](https://github.com/opendefence/core/blob/929149db8925881470a37281179f4829029a4354/src/opendefence_core/api/app.py).
-The integration's [M1 contracts](m1-contracts.md) and
-[M2 policy](m2-policy.md) give the local semantics. The
-[original plan](integration-mediamtx-plan.md) and
-[API draft](openapi.json) are design references, not deployed behavior.
-The callsign path and role decisions in this handoff replace the older UUID
-path and permission assumptions in those original documents. The
-[legacy authorization handler](https://github.com/pvarki/python-mediamtx-rmmtxauthz/blob/main/src/rmmtxauthz/web/mediamtx.py)
-is the source of the baseline read and publish rules. Its `productuser` branch
-does not apply to this integration.
+models. The [M1 contracts](m1-contracts.md) and [M2 policy](m2-policy.md)
+record local integration rules. The [original plan](integration-mediamtx-plan.md)
+and [API draft](openapi.json) are historical design references. The
+[legacy handler](https://github.com/pvarki/python-mediamtx-rmmtxauthz/blob/main/src/rmmtxauthz/web/mediamtx.py)
+is the source of the initial read and publish path rule. Its `productuser`
+branch does not apply here.
