@@ -80,6 +80,9 @@ The [Core media-policy handoff](docs/core-media-policy-handoff.md) lists the
 Core decisions and acceptance cases that this integration needs.
 Current media paths use `live/{tool}/{callsign}`. The original plan and API draft
 retain the earlier UUID-path proposal as historical design text.
+MediaMTX `api`, `metrics`, and `pprof` actions are reserved for current Core
+`superadmin` Users and this integration's own service identity. See the
+[control-action boundary](docs/core-media-policy-handoff.md#required-decision-for-each-user).
 Core owns user mTLS authentication. The integration's header parser consumes
 `X-OpenDefence-User-UUID` by default, with a configurable name. See
 [Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate

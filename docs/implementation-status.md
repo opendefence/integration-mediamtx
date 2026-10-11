@@ -18,6 +18,12 @@ plan and API draft is historical.
 `task check` passed Ruff, strict Pyrefly, and 228 tests. All pre-commit checks
 passed. The live MediaMTX protocol spike was not rerun with callsign paths.
 
+The user also set the control-action rule: only a current `superadmin` or this
+integration's own service identity may use MediaMTX `api`, `metrics`, or `pprof`.
+Ordinary media grants stay unable to use those actions. The operator has no
+production control-credential issuer or user control route yet. Its network
+policy currently limits the private control port to the operator Pod.
+
 ## Grant reservation checkpoint
 
 Date: 2026-10-11. Added an internal Secret-backed reservation ledger.

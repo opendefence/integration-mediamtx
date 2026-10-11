@@ -59,6 +59,7 @@ It can provide a short-lived policy projection or a fresh decision service.
 | Read scope | A normal media user may read every supported media path. `superadmin` may also read every supported media path. |
 | Publish scope | A normal media user may publish under `live/{tool}/{its-callsign}`. `superadmin` may publish under every supported media path. |
 | Sharing | Whether the User can create a transferable read credential. This is separate from permission to read a stream. `superadmin` can share; other users need an explicit role permission. A grant label is not permission. |
+| Control actions | For User requests, Core must identify the current `superadmin` role. Only that User or this integration's own service identity may use MediaMTX `api`, `metrics`, or `pprof`. All other Users and media grants must be denied. |
 | Global role | Whether the User currently has the effective `superadmin` role. Core must resolve direct and Group-derived roles. |
 | Policy version | A revision or equivalent change signal that covers all policy inputs, including User, Group ancestry, Role, permission, and assignment changes. The integration needs a way to reject or refresh old decisions. |
 | Freshness | An authoritative evaluation time and expiry, or a bounded fresh decision for each use. A live watch connection alone does not prove that an old value is current. |
@@ -82,10 +83,19 @@ algorithm. Core must define the deny result for missing or unresolved references
 and unknown role values. There is no `productuser` account type or general
 product credential bypass in this integration.
 
-`superadmin` grants all user-facing media permissions. A media credential still
-has one exact stream, action, protocol set, and expiry. MediaMTX control actions
-currently use a separate service credential. The integration does not yet
-expose a user control API.
+`superadmin` grants all media permissions and access to the MediaMTX `api`,
+`metrics`, and `pprof` actions. A media credential still has one exact stream,
+action, protocol set, and expiry; it does not become a control credential.
+A superadmin control credential must be tied to that User UID and checked
+against fresh Core policy on every authorization. The integration's own service
+credential uses a separate identity and does not depend on a User role. This
+service identity is integration-owned; it is not a `productuser`. The
+MediaMTX callback receives credentials, not Core's user mTLS identity, so a
+username alone cannot prove either control identity. The integration has no
+production control-credential issuer or user control route yet. The package's
+current ingress policy permits the operator Pod to reach the private control
+port. Other network policies can add access.
+Any later superadmin route must preserve authentication at the trusted edge.
 
 The integration can combine the Core result with its own current UserBinding
 UID. Core does not need to store the binding UID in its policy model. The UID
@@ -101,10 +111,11 @@ Core can choose either of these contract shapes:
    projection must have a short, authoritative validity interval. Core must
    publish changes caused by every relevant source, and define ordering or
    resync behavior after a missed event.
-2. An authenticated decision API for a subject, integration, action, and exact
-   stream. It must return a bounded validity interval or require a fresh call
-   for each authorization. It must also give the integration a way to find
-   affected grants and sessions when policy changes.
+2. An authenticated decision API for a subject, integration, and action. Media
+   actions also identify the exact stream. The API must return a bounded
+   validity interval or require a fresh call for each authorization. It must
+   also let the integration find affected grants and sessions when policy
+   changes.
 
 For either shape, agree on the schema version, service identity or read
 permission, error result, clock rules, maximum staleness, and behavior during a
@@ -129,27 +140,32 @@ verified value.
 1. A User is approved and its binding is `Synced=True`, but it has no MediaMTX
    role or `superadmin` role. The result denies credentials and media admission.
 2. Core assigns a normal media role to a User with callsign `alpha`. The User
-   can read approved media paths and publish to `live/icu/alpha`. It cannot
+   can read supported media paths and publish to `live/icu/alpha`. It cannot
    publish to `live/icu/alpha2` or a path for another User.
 3. A User has the effective `superadmin` role. It can read and publish on any
    media path, even without a separate MediaMTX assignment. A media credential
    still has its own exact stream, action, protocol, and expiry.
-4. A Group ancestor, Role, permission, or assignment changes without a User
+4. A current `superadmin` or the integration's own service credential can use
+   `api`, `metrics`, and `pprof` when the respective endpoint is enabled. A
+   normal media user, a read or publish grant, and an expired superadmin
+   credential cannot use these actions. Removing the `superadmin` role denies
+   the User's next control request within the agreed freshness limit.
+5. A Group ancestor, Role, permission, or assignment changes without a User
    object edit. A new decision reflects the change. An old decision expires or
    is invalidated within the agreed freshness limit.
-5. A User loses approval, is revoked, or reaches its absolute access deadline.
+6. A User loses approval, is revoked, or reaches its absolute access deadline.
    New admission stops. The integration can identify and remove existing
    sessions within the agreed healthy-system target.
-6. A User has no access deadline by explicit Core policy. The integration does
+7. A User has no access deadline by explicit Core policy. The integration does
    not infer this from an omitted or unreadable deadline.
-7. A User is deleted and recreated with the same callsign. The new
+8. A User is deleted and recreated with the same callsign. The new
    `metadata.uid` differs. Credentials for the old UID do not authorize the new
    User. Core must define any identity-recovery mapping before old grants can
    be restored.
-8. Core policy is stale, missing, malformed, or unavailable. New credentials
+9. Core policy is stale, missing, malformed, or unavailable. New credentials
    and media admission are denied. A recovered policy can restore access only
    after a fresh decision and the integration's own grant checks.
-9. A User may read a stream but has no sharing permission. The User cannot
+10. A User may read a stream but has no sharing permission. The User cannot
    create a transferable reader grant. MediaMTX bearer credentials do not
    identify the person who receives them.
 

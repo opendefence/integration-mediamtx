@@ -10,6 +10,8 @@ integrations define roles. Its global `superadmin` role grants all media access.
 There is no `productuser` type. See the [current Core handoff](core-media-policy-handoff.md).
 This update replaces the UUID-based media path and permission assumptions below.
 User and grant identity still use the immutable Core User UID.
+Only current `superadmin` Users and this integration's own service identity may
+use MediaMTX `api`, `metrics`, or `pprof`. Ordinary media grants cannot use them.
 
 ## Core evidence
 
@@ -160,10 +162,13 @@ that bypass these invariants, and Secret encryption remains a base requirement.
 
 ## Media boundary and release gates
 
-Use external HTTPS authorization and `authHTTPExclude: []`. Media grants cannot
-authorize `api`, `metrics` or `pprof`. Management credentials are separate and
-available before reconciliation starts. Keep `pprof` disabled. Require a grant
-username; accept the upstream duplicate password/token representation. A token
+Use external HTTPS authorization and `authHTTPExclude: []`. Ordinary media grants
+cannot authorize `api`, `metrics` or `pprof`. Permit these actions only for a
+current Core `superadmin` with a separate control credential or for this
+integration's own service credential. The service credential must be available
+before reconciliation starts. Enable `pprof` only when it is needed and apply
+the same authorization rule. Require a username for each credential; accept the
+upstream duplicate password/token representation. A token
 alone has no reliable grant-to-session mapping in this design.
 
 Upstream reports `rtsp` for RTSPS and `rtmp` for RTMPS. Treat them as secure public
