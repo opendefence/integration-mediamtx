@@ -33,8 +33,9 @@ The adapter provides resource operations:
   client. It atomically creates `mediamtx-<User UUID hex>`. Concurrent losers
   fetch the stored binding and validate its identity and ownership. The
   annotation `mediamtx.opendefence.fi/user-uuid` pins the reference to the
-  immutable User UID. A recreated User gets a different binding even if its
-  name is reused. Mismatched or deleting bindings are not adopted or retargeted.
+  immutable User UID. A recreated, unapproved test User gets a different
+  binding even if its name is reused. Mismatched or deleting bindings are not
+  adopted or retargeted. Approved Users are revoked and kept, not recreated.
 - `set_binding_synced` takes the provisioning result from its caller. It writes
   only the status subresource with UID and resource-version tests. It preserves
   other conditions and changes the transition timestamp only when the condition

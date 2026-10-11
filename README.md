@@ -118,8 +118,9 @@ Role projection and the public API remain separate work. The
 `task operator:run`. Provisioning stays incomplete until Core's Role
 projection and MediaMTX configuration are implemented.
 The [kubectl test](docs/m2-operator.md#test-with-kubectl-without-core-operator)
-creates a disposable User and changes its projected roles and groups without
-running `core-operator`.
+creates a disposable, unapproved User and changes its projected roles and groups
+without running `core-operator`. An approved User stays as a permanent record
+after revocation; do not delete it.
 The [M2 session adapter](docs/m2-sessions.md) can remove connections by grant
 username after denial is persisted; it is not connected to a public API yet.
 The [M2 reservation adapter](docs/m2-reservations.md) stores bounded grant

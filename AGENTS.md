@@ -16,6 +16,9 @@ Read [README.md](README.md) and [implementation status](docs/implementation-stat
 - Treat the projected User roles and memberships in Kubernetes CRD status as
   integration input. Do not require `core-operator` to run during integration
   reconciliation or tests. A test can supply the CRD state directly.
+- Keep approved Users as permanent records. If `spec.approvedAt` is set, revoke
+  the User with `spec.revokedAt`; do not delete or recreate that User. Use only
+  unapproved Users for tests that delete or recreate User resources.
 
 Run `task check` after code changes.
 Run `task package:check` after Zarf package or overlay changes.

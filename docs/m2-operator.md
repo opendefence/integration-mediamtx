@@ -3,8 +3,9 @@
 `mediamtx-operator` watches cluster-scoped Core Users and integration-owned
 UserBindings in one namespace. It creates missing observations with the existing atomic
 binding adapter. It reads the current User from Kubernetes before creation;
-cached identity only selects work. Recreated Users get separate UID-pinned
-bindings. It does not change Core Users, resolve roles or issue credentials.
+cached identity only selects work. Recreated, unapproved test Users get separate
+bindings with the new UID. It does not change Core Users, resolve roles or issue
+credentials.
 It does not call or require `core-operator`. A test can set User CRD status
 directly and trigger the same User watch.
 
@@ -50,9 +51,11 @@ Use a test cluster with the Core User and UserBinding custom resource
 definitions (CRDs) and a running `mediamtx-operator`. The commands below use
 the local development namespace. Set `MTX_NAMESPACE` to your integration
 namespace if it differs. Use a Kubernetes context where you may create a
-disposable User and patch User and UserBinding status. No `core-operator`
-Deployment is required. If `core-operator` runs in the selected cluster, it
+disposable, unapproved User and patch User and UserBinding status. A
+`core-operator` Deployment is not required. If `core-operator` runs, it
 can replace the test projection. Run all command blocks in the same shell.
+Never set `spec.approvedAt` on this fixture. An approved User must stay as a
+permanent record, even after `spec.revokedAt` is set.
 
 Check the context, the CRDs, and `mediamtx-operator` before the test:
 
@@ -126,10 +129,10 @@ kubectl -n "$MTX_NAMESPACE" wait \
   "userbinding/$MTX_BINDING" --timeout=30s
 ```
 
-Delete the binding before the User. Core's admission webhook can reject User
-deletion while a UserBinding still refers to it. `mediamtx-operator` can
-recreate the binding while the User still exists, so delete the binding again
-after the User is gone:
+Delete the binding before this unapproved test User. Core's admission webhook
+can reject User deletion while a UserBinding still refers to it.
+`mediamtx-operator` can recreate the binding while the User still exists.
+Delete the binding again after the User is gone:
 
 ```sh
 kubectl -n "$MTX_NAMESPACE" delete userbinding "$MTX_BINDING" --ignore-not-found

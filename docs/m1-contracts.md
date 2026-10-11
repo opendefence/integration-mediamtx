@@ -46,9 +46,11 @@ The handoff's open items remain open.
 Core remains the identity authority. Preserve its current `metadata.uid` source.
 Normalize canonical UUID text and compact Base64URL into the same UUID value.
 Emit compact, unpadded Base64URL for public IDs. Do not infer identity from a
-callsign or silently introduce a persistent UUID field. Core must supply a
-mapping before grants are restored against recreated Users. The integration
-does not read User certificate fields. Core owns User certificate activation.
+callsign or silently introduce a persistent UUID field. After cluster
+recovery, restore a grant only if its stored User UID matches the current User
+UID. Do not restore grants by callsign. Approved Users stay as permanent
+records after revocation. The integration does not read User certificate
+fields. Core owns User certificate activation.
 
 The current path is `live/{tool}/{callsign}` with tools `icu`, `gopro`, `uas`
 and `ipcam`. Match exact owner and path segments. Reject encoded separators,

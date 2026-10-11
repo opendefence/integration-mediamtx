@@ -29,6 +29,13 @@ or `Synced=True` condition does not assign a Role. Core can report
 `BindingsSynced=True` when a User has no bindings. Neither condition grants
 media access.
 
+An approved User is a permanent record. Core must reject deletion when
+`spec.approvedAt` is set, including after revocation. Set `spec.revokedAt` to
+revoke access and retain the User resource. Unapproved test Users can be
+deleted. The current sibling Core controller checks for UserBindings before
+deletion, but it does not yet check `spec.approvedAt`. Core developers must add
+this check before relying on the deletion rule.
+
 ## Data Core must project
 
 Core must publish the following general User data. It does not need to publish
@@ -36,7 +43,7 @@ read, publish, share, or MediaMTX control permissions.
 
 | Data | Required meaning |
 | --- | --- |
-| User identity | `User.metadata.uid` is the immutable subject. A recreated User gets a new UID, even if it has the same callsign. |
+| User identity | `User.metadata.uid` is the immutable subject. A recreated, unapproved test User gets a new UID, even if it has the same callsign. Approved Users stay in place during normal operation. |
 | Callsign | The current User callsign. The integration uses it in media paths, not as a credential identity. |
 | Account state | Whether the User is approved, pending, revoked, or deleting. A revoked or unapproved User has no media access. |
 | Effective Roles | Names and UIDs of all current Roles, including direct and Group-derived Roles. Include the global `superadmin` Role. |
@@ -142,8 +149,11 @@ still open. TAKServer integration work remains deferred.
 6. Approval ends, a User is revoked, or a general account deadline passes.
    New admission stops. The integration finds and removes existing sessions
    within the agreed healthy-system target.
-7. A User is deleted and recreated with the same callsign. The new UID does
-   not authorize the old User's grants.
+7. An unapproved test User is deleted and recreated with the same callsign.
+   The new UID cannot claim the old UserBinding or a test grant pinned to the
+   old UID. An approved User is revoked with `spec.revokedAt` and remains in the
+   cluster.
+   Core rejects deletion of that approved User before and after revocation.
 8. The projection is missing, incomplete, malformed, stale, or unavailable.
    The integration denies new credentials and media admission.
 9. A current `superadmin` or this integration's service credential may use

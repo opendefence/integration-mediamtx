@@ -9,6 +9,8 @@ M3 has not started.
 User CRD status is the input contract. Tests can write projected roles and
 memberships directly. The missing effective-role fields remain a schema gap,
 not a `core-operator` availability gate.
+Approved Users stay as permanent records after revocation. Deletion and
+recreation tests use only unapproved Users.
 
 ## User identity boundary
 
@@ -366,7 +368,8 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
 - Live shared-CRD binding probe: passed. Eight concurrent creators returned one
   persisted binding. Synced status recorded the current generation, and a repeat
   made no write. Stale resource versions and replaced binding UIDs were rejected.
-  Recreated Users received separate bindings despite name reuse. Kubernetes
+  Recreated, unapproved test Users received separate bindings despite name
+  reuse. Kubernetes
   pruned unsupported status fields. Results and source hashes are in
   [M2 binding results](m2-bindings-results.json).
 - The probe initially tried to reopen a client already used by discovery. It
@@ -451,7 +454,8 @@ Run `git log -1 --format=%H -- docs/implementation-status.md` to get its commit 
   The sibling base checkout and isolated probe lifecycle tasks were not changed.
 - Live `mediamtx-operator` probe with registry Cloudcoil 0.8.0: passed. Startup
   replay created missing bindings; deleting a binding recreated it with a new UID.
-  Recreating a User created a separate pinned binding. Owned observations stayed
+  Recreating an unapproved test User created a separate pinned binding. Owned
+  observations stayed
   pending, former orphan readiness was cleared, an unrelated binding's resource
   version stayed unchanged and the application stopped cleanly. The original
   adapter assertions also passed against this release. See the source hashes and
