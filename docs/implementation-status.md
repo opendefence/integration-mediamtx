@@ -12,6 +12,25 @@ and no new Core policy projection fields.
 Approved Users stay as permanent records after revocation. Deletion and
 recreation tests use only unapproved Users.
 
+## TAK video adapter checkpoint
+
+Date: 2026-10-11. The TAK adapter reconciles video collections through
+`/Marti/api/video`. It uses stable feed IDs that include the integration
+namespace and canonical stream ID. It publishes an alias and a credential-free
+RTSPS URL. It updates changed records and removes stopped streams. It leaves
+other installations' feed IDs unchanged and recovers ownership after a restart.
+Every write requires readback because TAK can return success after a failed
+database write. No media password enters a TAK feed.
+
+A live TAK 5.8.92 probe created, read, and deleted a video collection through
+port 8443 with certificate verification. The ordinary test User could read it.
+The schema matches TAK's
+[video collection API](https://github.com/TAK-Product-Center/Server/blob/main/src/takserver-core/takserver-war/src/main/java/com/bbn/marti/video/VideoConnectionManagerV2.java).
+`task check` passed 286 tests, Ruff, and strict Pyrefly. The required
+whole-repository audit found no new defect for one catalogue writer and a few
+hundred Users. Deployment wiring remains the next step. Native TAK client
+playback and safe integration certificate renewal remain unverified.
+
 ## Stream discovery adapter checkpoint
 
 Date: 2026-10-11. `mediamtx-operator` creates a stable control password in
