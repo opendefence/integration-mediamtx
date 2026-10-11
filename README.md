@@ -98,14 +98,14 @@ retain the earlier UUID-path proposal as historical design text.
 MediaMTX `api`, `metrics`, and `pprof` actions are reserved for current Core
 `superadmin` Users and this integration's own service identity. See the
 [control-action boundary](docs/core-media-policy-handoff.md#mediamtx-role-meanings-owned-by-this-integration).
-Core owns user mTLS authentication. The integration's header parser consumes
-`X-OpenDefence-User-UUID` by default, with a configurable name. See
-[Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate
+Core owns User mutual Transport Layer Security (mTLS) authentication. Traefik
+ends mTLS and sends a verified User UUID to the REST API. The integration's
+header parser consumes `X-OpenDefence-User-UUID` by default, with a configurable
+name. See the [Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate
 header handling and the supplied UserBinding schema.
-The [certificate identity assumptions](docs/core-media-policy-handoff.md#certificate-identity-metadata)
-cover Core's proposed public credential records. The parser validates these
-records, but no MediaMTX access decision uses them yet. Integration workloads
-do not use service Users or UserBindings.
+The integration does not read User certificate data. MediaMTX will check
+integration-issued passwords for media streams when grant issuance is connected.
+Integration workloads do not use service Users or UserBindings.
 The [M2 binding adapter](docs/m2-bindings.md) implements atomic binding creation
 and guarded status writes, with an explicit live CRD probe. Core's effective
 Role projection and the public API remain separate work. The
@@ -148,7 +148,11 @@ The current base Traefik chart exposes only
 HTTP/HTTPS. Public routes and native TCP/UDP entrypoints remain deployment work.
 NetworkPolicy enforcement must be
 verified with the cluster's network plugin before relying on the rules.
-Plain RTSP and RTMP remain disabled. MoQ grant issuance is pending.
+Plain RTSP and RTMP remain disabled. MoQ uses Basic username and password
+credentials in its [authorization token](https://github.com/bluenviron/mediamtx/blob/v1.21.2/internal/servers/moq/session.go).
+MoQ grant issuance is pending because MediaMTX 1.21.2 does not include
+usernames in its [MoQ session list](https://github.com/bluenviron/mediamtx/blob/v1.21.2/internal/defs/api_moq.go).
+The current grant cleanup needs usernames to close sessions after revocation.
 
 Deployment settings use Zarf package values, following Core's overlay names:
 `values/values.yaml` is the production default (`integration-mediamtx`) and

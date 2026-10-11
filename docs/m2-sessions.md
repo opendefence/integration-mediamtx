@@ -2,7 +2,10 @@
 
 The `sessions.py` adapter lists and removes connections by the grant's unique
 `g_` username. It uses the v3 routes for HLS, RTSPS, RTMPS, SRT and WebRTC in
-MediaMTX 1.21.2. The routes and list fields match the pinned upstream
+MediaMTX 1.21.2. MoQ is pending because its
+[session list](https://github.com/bluenviron/mediamtx/blob/v1.21.2/internal/defs/api_moq.go)
+has no username.
+The routes and list fields match the pinned upstream
 [OpenAPI definition](https://github.com/bluenviron/mediamtx/blob/v1.21.2/api/openapi.yaml).
 The existing live HLS spike confirmed that a denied callback leaves an active
 session usable until its session is kicked.

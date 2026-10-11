@@ -100,23 +100,14 @@ injects the verified User UUID. The integration currently accepts
 `X-OpenDefence-User-UUID` by default. It does not run ForwardAuth or inspect
 client certificates.
 
-## Certificate identity metadata
+## Certificate and workload identity boundary
 
-Core plans to publish accepted User certificate records in one User annotation.
-Each record has a Secure Hash Algorithm 256 (SHA-256) fingerprint of the leaf
-certificate's Distinguished Encoding Rules (DER) bytes. It also has a positive
-serial number, an issuer identifier, and validity times. Core must derive
-these fields from the issued certificate and publish only credentials that it
-accepts. Issuance alone does not activate a credential. Consumers must deny a
-disabled User even when the annotation still contains a record.
-
-This integration can parse the proposed version-one record format. Missing or
-malformed metadata yields no credential records. A consumer must also check
-the account state and each certificate's validity time. It must not use the
-certificate common name as an identity fallback. The final annotation key and
-issuer identifier format are still open. MediaMTX does not use these records
-for User access today; Core still supplies the verified User UUID in the
-trusted HTTP header.
+Core owns User certificates and their activation. Traefik ends User mutual
+Transport Layer Security (mTLS) for the public REST API. It sends the verified
+User UUID in a trusted header. This integration does not read User certificate
+records. It will issue passwords for MediaMTX streams. In MediaMTX 1.21.2,
+MoQ also accepts a username and password through its authorization token. It
+does not require User certificate metadata.
 
 An integration workload is not a User. Core plans a separate Integration
 Manifest for workload identity and client credentials. Do not create service
