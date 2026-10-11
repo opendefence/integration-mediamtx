@@ -25,9 +25,22 @@ MediaMTX container started as a non-root user with a read-only file system.
 It opened the selected protocol listeners, including MoQ over HTTP/2, HTTP/3,
 and QUIC. The MoQ TLS listener presented the mounted certificate. An
 unauthenticated HLS request returned 401. The shared development cluster has
-a Ready, CA-backed `public-issuer` from base. A live package deployment has
-not been run. The local overlay uses `local-dev.opendefence.fi`, which resolves
-to `127.0.0.1` for local testing.
+a Ready, CA-backed `public-issuer` from base. The local overlay uses
+`local-dev.opendefence.fi`, which resolves to `127.0.0.1` for local testing.
+
+The Zarf package was deployed to `kind-opendefence-dev` in connected mode.
+Both Deployments became ready. cert-manager issued `mediamtx-tls` from
+`public-issuer` for `local-dev.opendefence.fi`. A client verified the MoQ
+certificate with the exported base CA certificate and hostname. An
+unauthenticated HLS request returned 401. The server log listed the RTSPS,
+RTMPS, HLS, WebRTC, SRT, and MoQ listeners. A local connection to the
+control API port 9997 was refused. Zarf installed the ingress
+NetworkPolicies, but Kind uses `kindnet`, which does not enforce them. The
+`package:deploy:local` task loads the operator image into Kind before a
+connected deployment. A second deployment upgraded the package and kept both
+Deployments ready. The task refused a different Kubernetes context.
+The packaged operator created a UserBinding for a disposable User. It pinned
+the User identifier and set `Synced=False`. Both test objects were removed.
 
 ## Grant retirement and retention checkpoint
 
@@ -539,18 +552,18 @@ adapter result retains its reviewed Git dependency identity. There is no local
 inheritance algorithm or user database.
 
 Binding ownership/schema and the integration's injected-header responsibility
-are resolved by the user's M2 clarification. Core policy freshness, effective
-permissions and revision, identity restore and approval deadlines remain open.
-The previously inspected scaffold and supplied CRDs do not define that projection;
-the newly installed model library does not add it. A source
-was requested asynchronously; no fallback authority is assumed. Core owns
+are resolved by the user's M2 clarification. Core must project effective Roles,
+identity state, approval deadlines, and revision data into each User. The
+installed Core model library does not define that projection. No fallback
+authority is assumed. Core owns
 certificate activation; media sessions are not activation evidence. Validate
 header stripping and trusted-only ingress in deployment; do not build ForwardAuth here.
 
-The internal reservation ledger has unit proof for concurrency, idempotent
-retries and conditional updates. Grant Secret creation, revocation, restart
-recovery and garbage collection remain before issuance.
-The self-use/sharing purpose decision also blocks that endpoint.
+The internal reservation ledger and grant Secret adapter have unit and live
+Kubernetes proof. They can reserve, create, revoke, drain, and prune grants.
+No production caller issues credentials or runs recovery and pruning. Grant
+issuance still needs the Core projection, the public API, and MediaMTX control
+access. Sharing is reserved for a later route.
 
 HTTP prefix routing needs a base-approved response rewrite or another agreed
 route contract. Strict deadline enforcement during callback, operator or control
@@ -561,11 +574,12 @@ TAK-specific support stays deferred until the sibling TAK tasks are complete.
 This includes TAK video XML and cross-repository integration. Existing TAK names
 in the draft API do not advertise runtime support.
 
-The binding observation operator is implemented; MediaMTX provisioning and the
-public API are not. Bindings stay `Synced=False` while those dependencies remain
-open. Core policy provenance, RTMPS, SRT, WebRTC/ICE, native clients, Core policy
-and MediaMTX provisioning faults, trusted ingress, release images,
-offline installation, AMD64 and hosted CI execution are not checked.
-Image publishing on `arc-runner-set` is deferred until runtime images exist.
+The binding observation operator and a deny-by-default MediaMTX server are
+deployed locally. Stream provisioning and the public API are not implemented.
+Bindings stay `Synced=False` while those dependencies remain open. Core policy
+provenance, real RTMPS, SRT, WebRTC/ICE and MoQ clients, Core policy and
+MediaMTX provisioning faults, trusted ingress, NetworkPolicy enforcement,
+offline installation, AMD64, and hosted CI execution are not checked.
+Image publishing on `arc-runner-set` is deferred.
 The Core companion document was located during M1. Its source hash and the
 user-supplied companion search URLs are recorded in `docs/m1-contracts.md`.

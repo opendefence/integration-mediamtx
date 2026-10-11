@@ -95,11 +95,11 @@ tasks:
       - zarf package create . --architecture {{.ARCH | shellQuote}} --confirm --output {{.BUILD_DIR | shellQuote}}
 
   package:deploy:
-    desc: Deploy both workloads from a Zarf package into the selected namespace
+    desc: Deploy both workloads into a Zarf-initialized cluster
     requires:
       vars: [PACKAGE_FILE]
     vars:
-      VALUES_FILE: '{{.VALUES_FILE | default "values/local-dev.yaml"}}'
+      VALUES_FILE: '{{.VALUES_FILE | default "values/values.yaml"}}'
     preconditions:
       - sh: command -v zarf >/dev/null
         msg: Install Zarf 0.87.0 before deploying the package
@@ -108,6 +108,32 @@ tasks:
       - sh: test -f {{.VALUES_FILE | shellQuote}}
         msg: Set VALUES_FILE to an existing values file
     cmds:
+      - zarf package deploy {{.PACKAGE_FILE | shellQuote}} --confirm --values {{.VALUES_FILE | shellQuote}}
+
+  package:deploy:local:
+    desc: Load the operator image and deploy to a connected Kind cluster
+    requires:
+      vars: [PACKAGE_FILE]
+    vars:
+      CLUSTER_NAME: '{{.CLUSTER_NAME | default "opendefence-dev"}}'
+      KUBE_CONTEXT: '{{.KUBE_CONTEXT | default (printf "kind-%s" .CLUSTER_NAME)}}'
+      CONTAINER_RUNTIME: '{{.CONTAINER_RUNTIME | default "podman"}}'
+      VALUES_FILE: '{{.VALUES_FILE | default "values/local-dev.yaml"}}'
+    env:
+      KIND_EXPERIMENTAL_PROVIDER: '{{.CONTAINER_RUNTIME}}'
+    preconditions:
+      - sh: command -v kind >/dev/null
+        msg: Install Kind before deploying to the local cluster
+      - sh: test "$(kubectl config current-context)" = {{.KUBE_CONTEXT | shellQuote}}
+        msg: Switch kubectl to the selected KUBE_CONTEXT before deploying
+      - sh: test -f .local/operator-image.tar
+        msg: Build the operator image archive with task package:build
+      - sh: test -f {{.PACKAGE_FILE | shellQuote}}
+        msg: Set PACKAGE_FILE to a built Zarf package archive
+      - sh: test -f {{.VALUES_FILE | shellQuote}}
+        msg: Set VALUES_FILE to an existing values file
+    cmds:
+      - kind load image-archive .local/operator-image.tar --name {{.CLUSTER_NAME | shellQuote}}
       - zarf package deploy {{.PACKAGE_FILE | shellQuote}} --connected --confirm --values {{.VALUES_FILE | shellQuote}}
 
   operator:run:

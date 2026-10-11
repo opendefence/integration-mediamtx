@@ -53,9 +53,10 @@ task base-package:export-ca > .local/public-root-ca.pem
 ```
 
 Pass overrides directly, for example `CONTAINER_RUNTIME=podman` or
-`CLUSTER_NAME=my-dev`. Package commands require the current kubectl context to
-match `KUBE_CONTEXT` (default `kind-<CLUSTER_NAME>`); switch it explicitly when
-reusing an existing cluster. `base-package:install`, `base-package:remove` and
+`CLUSTER_NAME=my-dev`. Base package commands and `package:deploy:local` require
+the current kubectl context to match `KUBE_CONTEXT` (default
+`kind-<CLUSTER_NAME>`). Switch it explicitly when reusing an existing cluster.
+`base-package:install`, `base-package:remove` and
 `base-package:export-ca` are available separately.
 `task base:down` deletes that development cluster and keeps its registry data.
 Run cluster lifecycle commands serially. To build or deploy unpublished base
@@ -177,14 +178,18 @@ For an AMD64 Docker host, omit those overrides (Docker 25 or newer is needed
 for a compatible [Zarf image archive](https://docs.zarf.dev/ref/components/)).
 The build creates an ignored operator OCI image archive in `.local/`. Zarf pulls
 the pinned MediaMTX image while it creates the package.
-After selecting the intended Kubernetes context and creating the namespace,
-deploy with:
+For the local Kind cluster, select its Kubernetes context. Create the namespace
+specified in `values/local-dev.yaml`. Then deploy with:
 
 ```sh
-task package:deploy PACKAGE_FILE=dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst
+kubectl create namespace integration-mediamtx-dev
+task package:deploy:local PACKAGE_FILE=dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst
 ```
 
-For production or standalone deployments, supply the appropriate values file
-with `VALUES_FILE`. Set both `namespace` and `domain` in that file. The package
-has not been deployed to a production cluster. Its media server rejects access
-until the public API and authorization service are connected.
+This task loads the built operator image into Kind before it deploys the package
+in Zarf connected mode. For a Zarf-initialized cluster, use `task package:deploy`
+instead. That task uses `values/values.yaml` by default. Supply a deployment
+values file with `VALUES_FILE`, and set both `namespace` and `domain` in that
+file. Create that namespace before deployment.
+The package has not been deployed to a production cluster. Its media server
+rejects access until the public API and authorization service are connected.
