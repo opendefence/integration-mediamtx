@@ -2,3 +2,5 @@
 namespace: integration-mediamtx-dev
 # Local test hostname; DNS resolves it to 127.0.0.1.
 domain: local-dev.opendefence.fi
+takUrl: https://tak-server.integration-tak.svc.cluster.local:8443
+takServerName: tak.localtest.me

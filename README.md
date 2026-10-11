@@ -2,8 +2,8 @@
 
 This repository starts the replacement for the legacy MediaMTX integration.
 It includes `mediamtx-operator`, a private password authorization callback,
-and a packaged MediaMTX server. Public credential delivery and session cleanup
-remain pending. The
+a packaged MediaMTX server, and optional TAK stream publication. Public
+credential delivery and session cleanup remain pending. The
 [original implementation plan](docs/integration-mediamtx-plan.md) and
 [original API draft](docs/openapi.json) are design references. See the
 [implementation status](docs/implementation-status.md) for current work and evidence.
@@ -87,10 +87,10 @@ Run cluster commands one at a time.
 See the [Kind rootless requirements](https://kind.sigs.k8s.io/docs/user/rootless/)
 before testing UDP traffic. The isolated Kind lifecycle tasks install no application workload.
 
-TAK integration work is in scope. The local MediaMTX integration certificate
-has administrator access to TAKServer port 8443 through the cluster Service.
-See the [TAK checkpoint](docs/implementation-status.md#tak-administrator-access-checkpoint).
-TAK video profiles and client support still need implementation and tests.
+`mediamtx-operator` can publish active streams to the TAKServer video catalogue.
+It uses the integration's client certificate on port 8443 and publishes no
+media passwords. See [TAK publication](docs/m2-tak.md) for setup and limits.
+Native TAK client playback and video profile import still need tests.
 
 See the [decision record](docs/decisions/0001-foundation.md) and the
 [implementation status](docs/implementation-status.md) for scope and test evidence.
@@ -104,8 +104,9 @@ The [Core handoff](docs/core-media-policy-handoff.md) records this contract.
 The earlier [scoped-grant policy](docs/m2-policy.md) remains a separate probe.
 Current media paths use `live/{tool}/{callsign}`. The original plan and API draft
 retain the earlier UUID-path proposal as historical design text.
-MediaMTX `api`, `metrics`, and `pprof` actions are reserved for current Core
-`superadmin` Users and this integration's own service identity. See the
+MediaMTX `api`, `metrics`, and `pprof` actions require current Core
+`superadmin` membership. The integration's service identity can use only `api`.
+See the
 [authorization rule](docs/core-media-policy-handoff.md#current-authorization-rule).
 Core owns User mutual Transport Layer Security (mTLS) authentication. Traefik
 ends mTLS and sends a verified User UUID to the REST API. The integration's
@@ -155,7 +156,9 @@ rules. The package's NetworkPolicies remain the enforcement configuration.
 The package installs a MediaMTX Deployment, ClusterIP Service, configuration,
 and a certificate from base's `public-issuer`. MediaMTX calls the private HTTPS
 authorization service beside `mediamtx-operator`. A namespace-local cert-manager
-CA secures that service. The control API, metrics, and profiling listeners are disabled.
+CA secures that service and a separate certificate for MediaMTX's private
+HTTPS control API. `mediamtx-operator` creates its control password at startup.
+The metrics and profiling listeners remain disabled.
 The local development overlay uses the CA-backed `public-issuer` from base.
 This package does not configure the issuer.
 
@@ -163,7 +166,7 @@ The package also installs ingress `NetworkPolicy` rules. They select `mediamtx-o
 with callback port 9443 accessible only to MediaMTX Pods. They allow Traefik Pods in `traefik-system` to reach
 MediaMTX's HLS, WebRTC signaling, RTSPS, RTMPS, SRT, WebRTC ICE, and MoQ ports. The
 `mediamtx-operator` Pod may reach MediaMTX's private control API on port 9997
-when that API is enabled. Other NetworkPolicies can add permissions. The MediaMTX Pod uses
+with its control password. Other NetworkPolicies can add permissions. The MediaMTX Pod uses
 the `app.kubernetes.io/name: mediamtx` label and the pinned
 [MediaMTX 1.21.2 ports](https://github.com/bluenviron/mediamtx/blob/v1.21.2/mediamtx.yml)
 for these rules to apply. RTSPS, RTMPS, and MoQ use the issued certificate.
@@ -191,8 +194,13 @@ The Pod reads `CLOUDCOIL_NAMESPACE` from its own namespace through Kubernetes;
 no separate Pod environment setting is needed. For a standalone install, give
 Zarf a values file with both `namespace` and `domain`.
 `KUBECONFIG` selects the administrator's deployment context, not Pod configuration.
-There are no other `mediamtx-operator` application environment settings yet.
-Add future settings to the Zarf values, schema and manifest template when they appear.
+`takUrl` enables TAK publication when it contains a private HTTPS origin.
+It defaults to an empty string. `takServerName` optionally selects the TAK
+certificate name when it differs from the cluster address. The local overlay
+sets both values for the sibling `integration-tak` deployment. The package
+maps these values to `TAK_URL` and `TAK_SERVER_NAME`. It derives
+`MEDIA_RTSPS_URL` from `domain` and port 8322. See [TAK publication](docs/m2-tak.md)
+for the required `mediamtx-tak-admin` Secret.
 
 Install Zarf 0.87.0 and run `task package:check` to lint and render both
 overlays. `task package:render` regenerates the `mediamtx-operator` manifest after its

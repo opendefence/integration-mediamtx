@@ -16,20 +16,43 @@ def render() -> str:
     image = "{{ .Constants.OPERATOR_IMAGE }}"
     documents = create_operator(namespace=NAMESPACE).manifests(image=image, command=["mediamtx-operator"])
     deployment = next(document for document in documents if document["kind"] == "Deployment")
+    # Standby controllers are not ready; release the old leader before waiting for its replacement.
+    deployment["spec"]["strategy"] = {"type": "RollingUpdate", "rollingUpdate": {"maxSurge": 0, "maxUnavailable": 1}}
     pod = deployment["spec"]["template"]["spec"]
     pod["securityContext"] = {
         "runAsNonRoot": True,
         "runAsUser": 65532,
         "runAsGroup": 65532,
+        "fsGroup": 65532,
         "seccompProfile": {"type": "RuntimeDefault"},
     }
     pod["volumes"] = [
         {"name": "runtime-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": "16Mi"}},
         {"name": "auth-tls", "secret": {"secretName": "mediamtx-auth-tls"}},  # pragma: allowlist secret
+        {
+            "name": "control-ca",
+            "secret": {
+                "secretName": "mediamtx-control-tls",  # pragma: allowlist secret
+                "items": [{"key": "ca.crt", "path": "ca.crt"}],
+            },
+        },
+        {
+            "name": "tak-admin",
+            "secret": {
+                "secretName": "mediamtx-tak-admin",  # pragma: allowlist secret
+                "optional": True,
+                "defaultMode": 288,
+                "items": [{"key": key, "path": key} for key in ("ca.crt", "tls.crt", "tls.key")],
+            },
+        },
     ]
     container = pod["containers"][0]
     container.update(
-        volumeMounts=[{"name": "runtime-tmp", "mountPath": "/tmp"}],  # nosec B108 # Pod-only memory volume.
+        volumeMounts=[
+            {"name": "runtime-tmp", "mountPath": "/tmp"},  # nosec B108 # Pod-only memory volume.
+            {"name": "control-ca", "mountPath": "/var/run/mediamtx-control", "readOnly": True},
+            {"name": "tak-admin", "mountPath": "/var/run/tak", "readOnly": True},
+        ],
         ports=[{"name": "health", "containerPort": 8080}],
         readinessProbe={"httpGet": {"path": "/readyz", "port": "health"}},
         livenessProbe={"httpGet": {"path": "/healthz", "port": "health"}},
@@ -40,13 +63,19 @@ def render() -> str:
             "capabilities": {"drop": ["ALL"]},
         },
     )
+    container["env"] = [
+        *container["env"],
+        {"name": "TAK_URL", "value": "{{ .Values.takUrl }}"},
+        {"name": "TAK_SERVER_NAME", "value": "{{ .Values.takServerName }}"},
+        {"name": "MEDIA_RTSPS_URL", "value": "rtsps://{{ .Values.domain }}:8322"},
+    ]
     pod["containers"].append(
         {
             "name": "auth",
             "image": image,
             "command": ["mediamtx-auth"],
             "args": ["--host", "0.0.0.0", "--tls-cert", "/tls/tls.crt", "--tls-key", "/tls/tls.key"],  # nosec B104
-            "env": container["env"],
+            "env": [item for item in container["env"] if item["name"] == "CLOUDCOIL_NAMESPACE"],
             "ports": [{"name": "auth", "containerPort": 9443}],
             "volumeMounts": [
                 {"name": "auth-tls", "mountPath": "/tls", "readOnly": True},

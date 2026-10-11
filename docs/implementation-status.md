@@ -2,7 +2,8 @@
 
 Date: 2026-10-11. M2 now has callsign/password authorization and a private
 HTTPS callback. `mediamtx-operator` creates stable password Secrets for approved,
-unrevoked Users. The package connects MediaMTX to the callback. Public
+unrevoked Users. The package connects MediaMTX to the callback and publishes
+active stream metadata to TAKServer. Public
 credential delivery and automated session cleanup remain pending. M3 has not started.
 `mediamtx-operator` does not require a running `core-operator`. Kubernetes
 User CRD status is the input contract. Tests can write projected roles and
@@ -11,6 +12,54 @@ memberships directly. The current User model is sufficient: only projected
 and no new Core policy projection fields.
 Approved Users stay as permanent records after revocation. Deletion and
 recreation tests use only unapproved Users.
+
+## TAK publication deployment checkpoint
+
+Date: 2026-10-11. The ARM64 Zarf package is deployed to
+`kind-opendefence-dev`. `mediamtx-operator` reads MediaMTX's private HTTPS
+control API and publishes active streams to TAKServer through cluster port
+8443. Both connections verify the CA and certificate name. Only the main
+`mediamtx-operator` container mounts the integration client key.
+
+The catalogue checks each stream owner's current User approval before it
+writes TAK metadata. Unavailable source data stops the scan. The next scan
+retries the operation. Client certificates reload on each scan. A Kubernetes
+leader lease prevents overlapping catalogue writers. The restart test found
+a rollout deadlock with the default strategy. The package now stops the old
+Pod before waiting for the replacement leader. The callback is unavailable
+briefly during this change.
+
+A real FFmpeg publisher used an integration-issued User password and verified
+the RTSPS certificate. The live checks passed:
+
+- The feed appeared in 6.47 seconds with a credential-free RTSPS URL.
+- A `mediamtx-operator` restart retained exactly one feed with the same ID.
+- Stopping the publisher removed the feed in 10.73 seconds.
+- Restarting the publisher restored the same feed ID in 10.72 seconds.
+- Revoking the User removed the feed in 8.51 seconds.
+- The password was absent from TAK metadata and sampled Pod logs.
+
+These times describe one local run. They are not service guarantees.
+The publisher remained connected after User revocation. Feed removal does
+not terminate media sessions. The test then stopped the publisher.
+Approved test Users `mtxtakdc904e5c` and `mtxtakad607c0e` remain revoked.
+Their test password Secrets were removed. The first User belongs to the
+failed rollout probe. No approved User was deleted or recreated.
+
+The live control API returned HTTP 401 without credentials and with a wrong
+password. The service credential returned HTTP 200. The callback denied
+media read and publish requests from that identity.
+
+`task check` passed 293 tests, Ruff, and strict Pyrefly. Zarf lint and both
+overlay renders passed. All-file pre-commit checks passed. The required
+whole-repository audit assumed one MediaMTX instance and a few hundred Users.
+It found no new unresolved defect. Existing session cleanup, server
+certificate reload, and malformed User watch limits remain recorded work.
+The [adapter CI checkpoint](https://github.com/opendefence/integration-mediamtx/actions/runs/38158860652)
+passed Python checks, both image architectures, both Zarf packages, signing,
+and publication. See [TAK publication](m2-tak.md) for setup and limits.
+Native TAK client playback, public media routes, and automated registration
+of renewed integration certificates remain unverified or incomplete.
 
 ## TAK video adapter checkpoint
 
@@ -789,9 +838,10 @@ route contract. Strict deadline enforcement during callback, `mediamtx-operator`
 or control outage has no accepted mechanism. Keep the strict-outage capability false.
 The 15-second freshness and 30-second removal targets are not measured guarantees.
 
-TAK integration work is in scope. Local administrator access to TAKServer
-port 8443 is verified. TAK video XML and client integration remain pending.
-Existing TAK names in the draft API do not advertise runtime support.
+TAK integration work is in scope. Local administrator access and automatic
+stream catalogue publication through TAKServer port 8443 are verified.
+TAK video XML and native client playback remain pending. Existing TAK names
+in the draft public API do not advertise implemented REST routes.
 
 The packaged `mediamtx-operator`, HTTPS callback, and MediaMTX server are
 deployed locally with callsign/password authorization. Bindings stay `Synced=False`
@@ -800,6 +850,6 @@ provenance, real RTMPS, SRT, WebRTC/ICE and MoQ clients, Core policy and
 MediaMTX provisioning faults, trusted ingress, NetworkPolicy enforcement,
 offline installation, and AMD64 workload execution are not checked.
 The first package CI run passed AMD64 and ARM64 builds, signing, and publishing.
-The new ARC image publishing flow remains to be checked in CI.
+The ARC image publishing flow also passed in the adapter CI checkpoint above.
 The Core companion document was located during M1. Its source hash and the
 user-supplied companion search URLs are recorded in `docs/m1-contracts.md`.

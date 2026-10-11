@@ -46,6 +46,21 @@ rules:
   - create
   - get
 - apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - update
+  resourceNames:
+  - mediamtx-operator
+- apiGroups:
   - platform.opendefence.fi
   resources:
   - userbindings
@@ -97,16 +112,29 @@ spec:
         image: '{{ .Constants.OPERATOR_IMAGE }}'
         args:
         - run
-        env: &id001
-        - name: CLOUDCOIL_NAMESPACE
+        env:
+        - &id001
+          name: CLOUDCOIL_NAMESPACE
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: TAK_URL
+          value: '{{ .Values.takUrl }}'
+        - name: TAK_SERVER_NAME
+          value: '{{ .Values.takServerName }}'
+        - name: MEDIA_RTSPS_URL
+          value: rtsps://{{ .Values.domain }}:8322
         command:
         - mediamtx-operator
         volumeMounts:
         - name: runtime-tmp
           mountPath: /tmp
+        - name: control-ca
+          mountPath: /var/run/mediamtx-control
+          readOnly: true
+        - name: tak-admin
+          mountPath: /var/run/tak
+          readOnly: true
         ports:
         - name: health
           containerPort: 8080
@@ -141,7 +169,8 @@ spec:
         - /tls/tls.crt
         - --tls-key
         - /tls/tls.key
-        env: *id001
+        env:
+        - *id001
         ports:
         - name: auth
           containerPort: 9443
@@ -168,6 +197,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       volumes:
@@ -178,3 +208,26 @@ spec:
       - name: auth-tls
         secret:
           secretName: mediamtx-auth-tls
+      - name: control-ca
+        secret:
+          secretName: mediamtx-control-tls
+          items:
+          - key: ca.crt
+            path: ca.crt
+      - name: tak-admin
+        secret:
+          secretName: mediamtx-tak-admin
+          optional: true
+          defaultMode: 288
+          items:
+          - key: ca.crt
+            path: ca.crt
+          - key: tls.crt
+            path: tls.crt
+          - key: tls.key
+            path: tls.key
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1

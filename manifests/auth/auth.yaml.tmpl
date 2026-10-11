@@ -51,6 +51,23 @@ spec:
     name: mediamtx-auth-ca
     kind: Issuer
 ---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mediamtx-control-tls
+  namespace: {{ .Values.namespace }}
+spec:
+  secretName: mediamtx-control-tls # pragma: allowlist secret
+  dnsNames:
+    - mediamtx.{{ .Values.namespace }}.svc
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: mediamtx-auth-ca
+    kind: Issuer
+---
 apiVersion: v1
 kind: Service
 metadata:

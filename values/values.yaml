@@ -2,3 +2,7 @@
 namespace: integration-mediamtx
 # Public media hostname. Override before production deployment.
 domain: opendefence.invalid
+# Set a private TAK HTTPS origin to enable stream publication.
+takUrl: ""
+# Optional certificate name when the cluster address differs from the TLS name.
+takServerName: ""

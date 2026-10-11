@@ -76,8 +76,12 @@ cert-manager certificate authority (CA) signs the callback certificate. MediaMTX
 public CA certificate and verifies the callback service name over HTTPS.
 The callback fails closed when Kubernetes is unavailable. `mediamtx-operator`
 reports `Synced=False` until the remaining lifecycle work is complete.
-The public credential-delivery API, the integration's own control credential,
-password rotation, and automated removal of existing sessions remain pending.
+The integration's control identity is `mediamtx-control`. Its stable password
+is stored in a namespace Secret with the same name. Only `mediamtx-operator`
+creates that Secret. The callback permits this identity to use only the control
+API. It grants no media read or publish access and requires no User record.
+The public credential-delivery API, password rotation, and automated removal
+of existing sessions remain pending.
 Denial of a new callback does not end an existing media session.
 The callback loads its server certificate at startup. Restart the
 `mediamtx-operator` Deployment after certificate renewal. Restart MediaMTX

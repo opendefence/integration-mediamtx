@@ -47,9 +47,12 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
     assert component["imageArchives"][0]["images"] == [image]
     template = (ROOT / component["manifests"][0]["files"][0]).read_text()
     for values_file in ("values/values.yaml", "values/local-dev.yaml"):
-        namespace = yaml.safe_load((ROOT / values_file).read_text())["namespace"]
+        values = yaml.safe_load((ROOT / values_file).read_text())
+        namespace = values["namespace"]
         rendered = template.replace(NAMESPACE_TEMPLATE, namespace)
         rendered = rendered.replace("{{ .Constants.OPERATOR_IMAGE }}", image)
+        for key, value in values.items():
+            rendered = rendered.replace("{{ .Values." + key + " }}", value)
         documents = list(yaml.safe_load_all(rendered))
         assert all(document["kind"] != "CustomResourceDefinition" for document in documents)
         assert all(
@@ -60,22 +63,50 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
         binding = next(document for document in documents if document["kind"] == "ClusterRoleBinding")
         assert binding["subjects"][0]["namespace"] == namespace
         deployment = next(document for document in documents if document["kind"] == "Deployment")
+        assert deployment["spec"]["replicas"] == 1
+        assert deployment["spec"]["strategy"] == {
+            "type": "RollingUpdate",
+            "rollingUpdate": {"maxSurge": 0, "maxUnavailable": 1},
+        }
         pod = deployment["spec"]["template"]["spec"]
         container = pod["containers"][0]
         assert container["image"] == image
         assert pod["volumes"] == [
             {"name": "runtime-tmp", "emptyDir": {"medium": "Memory", "sizeLimit": "16Mi"}},
             {"name": "auth-tls", "secret": {"secretName": "mediamtx-auth-tls"}},  # pragma: allowlist secret
+            {
+                "name": "control-ca",
+                "secret": {
+                    "secretName": "mediamtx-control-tls",  # pragma: allowlist secret
+                    "items": [{"key": "ca.crt", "path": "ca.crt"}],
+                },
+            },
+            {
+                "name": "tak-admin",
+                "secret": {
+                    "secretName": "mediamtx-tak-admin",  # pragma: allowlist secret
+                    "optional": True,
+                    "defaultMode": 288,
+                    "items": [{"key": key, "path": key} for key in ("ca.crt", "tls.crt", "tls.key")],
+                },
+            },
         ]
         assert container["volumeMounts"] == [
-            {"name": "runtime-tmp", "mountPath": "/tmp"}  # nosec B108 # Pod mount, not a host path.
+            {"name": "runtime-tmp", "mountPath": "/tmp"},  # nosec B108 # Pod mount, not a host path.
+            {"name": "control-ca", "mountPath": "/var/run/mediamtx-control", "readOnly": True},
+            {"name": "tak-admin", "mountPath": "/var/run/tak", "readOnly": True},
         ]
         assert container["env"] == [
-            {"name": "CLOUDCOIL_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}}
+            {"name": "CLOUDCOIL_NAMESPACE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.namespace"}}},
+            {"name": "TAK_URL", "value": values["takUrl"]},
+            {"name": "TAK_SERVER_NAME", "value": values["takServerName"]},
+            {"name": "MEDIA_RTSPS_URL", "value": f"rtsps://{values['domain']}:8322"},
         ]
         auth = pod["containers"][1]
         assert auth["command"] == ["mediamtx-auth"] and auth["image"] == image
-        assert auth["env"] == container["env"]
+        assert auth["env"] == container["env"][:1]
+        assert "tak-admin" not in {mount["name"] for mount in auth["volumeMounts"]}
+        assert pod["securityContext"]["fsGroup"] == 65532
         assert {"name": "runtime-tmp", "mountPath": "/tmp"} in auth["volumeMounts"]  # nosec B108
         assert auth["args"] == [  # nosec B104 # Pod listener fixture.
             "--host",
@@ -170,7 +201,10 @@ def test_media_component_bundles_a_fail_closed_server_in_the_selected_namespace(
         assert (
             config["authHTTPAddress"] == f"https://mediamtx-auth.{values['namespace']}.svc:9443/internal/mediamtx/auth"
         )
-        assert config["api"] is False and config["metrics"] is False and config["pprof"] is False
+        assert config["api"] is True and config["apiEncryption"] is True
+        assert config["apiServerKey"] == "/control-tls/tls.key"
+        assert config["apiServerCert"] == "/control-tls/tls.crt"
+        assert config["metrics"] is False and config["pprof"] is False
         assert config["moq"] is True
         assert config["moqServerKey"] == "/tls/tls.key"
         assert config["moqServerCert"] == "/tls/tls.crt"
@@ -185,6 +219,7 @@ def test_media_component_bundles_a_fail_closed_server_in_the_selected_namespace(
         assert documents["Service"]["spec"]["selector"] == deployment["metadata"]["labels"]
         service_ports = documents["Service"]["spec"]["ports"]
         assert {(port["protocol"], port["port"]) for port in service_ports} == {
+            ("TCP", 9997),
             ("TCP", 8888),
             ("TCP", 8889),
             ("TCP", 8322),
@@ -208,6 +243,9 @@ def test_callback_certificate_covers_the_private_service_in_each_overlay() -> No
         tls = certificates["mediamtx-auth-tls"]["spec"]
         assert tls["dnsNames"] == [f"mediamtx-auth.{namespace}.svc"]
         assert tls["issuerRef"]["name"] == "mediamtx-auth-ca"
+        control = certificates["mediamtx-control-tls"]["spec"]
+        assert control["dnsNames"] == [f"mediamtx.{namespace}.svc"]
+        assert control["issuerRef"]["name"] == "mediamtx-auth-ca"
         service = next(item for item in documents if item["kind"] == "Service")
         assert service["spec"]["selector"] == {"app.kubernetes.io/name": "mediamtx-operator"}
         assert service["spec"]["ports"] == [{"name": "https", "port": 9443, "targetPort": "auth"}]

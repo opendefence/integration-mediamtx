@@ -2,6 +2,7 @@
 
 import logging
 import os
+import asyncio
 from datetime import UTC, datetime
 from functools import partial
 from collections.abc import AsyncIterator
@@ -21,6 +22,7 @@ from opendefence_integration_mediamtx.bindings import (
     set_binding_pending,
 )
 from opendefence_integration_mediamtx.credentials import active_user, control_password, ensure_user_password
+from opendefence_integration_mediamtx.catalogue import run_catalogue
 
 
 class BindingApplication(Application):
@@ -108,6 +110,7 @@ def create_operator(*, namespace: str, config: Config | None = None) -> Applicat
         controller,
         namespace=namespace,
         config=config,
+        leader_election=True,
         rules=(
             RBACRule(User, ("get", "list", "watch"), plural="users", scope="Cluster"),
             RBACRule(UserBinding, ("create",), plural="userbindings", scope="Namespaced"),
@@ -117,11 +120,27 @@ def create_operator(*, namespace: str, config: Config | None = None) -> Applicat
         health=HealthServer(host="0.0.0.0", port=8080),  # nosec B104 # Pod diagnostics, protected by deployment networking.
     )
 
-    @application.lifespan()
+    @application.lifespan(scope="leader")
     async def credentials() -> AsyncIterator[None]:
         passwords = await Secret.async_client(namespace=namespace, cached=False)
         await control_password(passwords, create=True)
-        yield
+        tak_url = os.environ.get("TAK_URL", "")
+        if not tak_url:
+            yield
+            return
+        async with asyncio.TaskGroup() as tasks:
+            catalogue = tasks.create_task(
+                run_catalogue(
+                    namespace=namespace,
+                    tak_url=tak_url,
+                    media_url=os.environ["MEDIA_RTSPS_URL"],
+                    server_name=os.environ.get("TAK_SERVER_NAME", ""),
+                )
+            )
+            try:
+                yield
+            finally:
+                catalogue.cancel()
 
     return application
 

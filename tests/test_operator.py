@@ -1,6 +1,7 @@
 """Exercise reconciliation through the actual Kubernetes resource clients."""
 
 import json
+import asyncio
 from datetime import UTC, datetime
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
@@ -18,6 +19,7 @@ from cloudcoil.models.kubernetes.core.v1 import Secret
 from lib_opendefence_core.models.v1alpha1 import Integration, ResolvedRef, User, UserBinding, UserSpec, UserStatus
 
 from opendefence_integration_mediamtx.bindings import USER_UUID_ANNOTATION
+from opendefence_integration_mediamtx import operator
 from opendefence_integration_mediamtx.operator import (
     BindingApplication,
     binding_keys,
@@ -30,6 +32,32 @@ SUBJECT = UUID("01234567-89ab-cdef-0123-456789abcdef")
 NAME = f"mediamtx-{SUBJECT.hex}"
 BINDING_UID = "01234567-89ab-cdef-0123-456789abcdea"
 NOW = datetime(2026, 10, 10, 12, tzinfo=UTC)
+
+
+@pytest.mark.asyncio
+async def test_catalogue_starts_with_the_application_and_stops_on_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TAK_URL", "https://tak.test")
+    monkeypatch.setenv("MEDIA_RTSPS_URL", "rtsps://media.test")
+    monkeypatch.setattr(Secret, "async_client", AsyncMock())
+    password = AsyncMock()
+    monkeypatch.setattr(operator, "control_password", password)
+    started, stopped = asyncio.Event(), asyncio.Event()
+
+    async def run(**options: str) -> None:
+        assert options["namespace"] == NAMESPACE and options["tak_url"] == "https://tak.test"
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    monkeypatch.setattr(operator, "run_catalogue", run)
+    app = create_operator(namespace=NAMESPACE)
+    async with asyncio.timeout(2):
+        async with app._lifespans.enter("leader", app.leader_election):
+            await started.wait()
+        await stopped.wait()
+    password.assert_awaited_once()
 
 
 def core_user() -> User:
@@ -369,7 +397,18 @@ def test_offline_manifests_preserve_core_ownership_and_namespace_scoping() -> No
     ]
     role = next(document for document in documents if document["kind"] == "Role")
     assert role["metadata"]["namespace"] == NAMESPACE
-    assert {rule["resources"][0] for rule in role["rules"]} == {"userbindings", "userbindings/status", "secrets"}
+    assert {rule["resources"][0] for rule in role["rules"]} == {
+        "userbindings",
+        "userbindings/status",
+        "secrets",
+        "leases",
+    }
+    assert next(rule for rule in role["rules"] if rule.get("resourceNames")) == {
+        "apiGroups": ["coordination.k8s.io"],
+        "resources": ["leases"],
+        "verbs": ["get", "update"],
+        "resourceNames": ["mediamtx-operator"],
+    }
     assert next(rule["verbs"] for rule in role["rules"] if rule["resources"] == ["secrets"]) == ["create", "get"]
     assert all("delete" not in rule["verbs"] for rule in role["rules"])
     assert not any(document["kind"] in {"CustomResourceDefinition", "Service", "Secret"} for document in documents)
