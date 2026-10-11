@@ -47,8 +47,10 @@ Core remains the identity authority. Preserve its current `metadata.uid` source.
 Normalize canonical UUID text and compact Base64URL into the same UUID value.
 Emit compact, unpadded Base64URL for public IDs. Do not infer identity from a
 callsign or silently introduce a persistent UUID field. Core must supply a
-mapping before grants are restored against recreated Users. Certificate CN
-encoding and certificate activation remain Core decisions.
+mapping before grants are restored against recreated Users. Core's later
+certificate plan puts the UUID in a Uniform Resource Identifier (URI) subject
+alternative name. The certificate common name is for display only. Core owns
+certificate activation.
 
 The current path is `live/{tool}/{callsign}` with tools `icu`, `gopro`, `uas`
 and `ipcam`. Match exact owner and path segments. Reject encoded separators,

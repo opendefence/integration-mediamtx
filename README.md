@@ -102,6 +102,10 @@ Core owns user mTLS authentication. The integration's header parser consumes
 `X-OpenDefence-User-UUID` by default, with a configurable name. See
 [Core boundary](docs/m1-contracts.md#identity-and-policy-boundary) for duplicate
 header handling and the supplied UserBinding schema.
+The [certificate identity assumptions](docs/core-media-policy-handoff.md#certificate-identity-metadata)
+cover Core's proposed public credential records. The parser validates these
+records, but no MediaMTX access decision uses them yet. Integration workloads
+do not use service Users or UserBindings.
 The [M2 binding adapter](docs/m2-bindings.md) implements atomic binding creation
 and guarded status writes, with an explicit live CRD probe. Core's effective
 Role projection and the public API remain separate work. The

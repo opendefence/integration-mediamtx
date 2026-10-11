@@ -5,6 +5,24 @@ The MediaMTX server is packaged. Stream provisioning and public API authorizatio
 still need Core's effective Role projection and integration code.
 M3 has not started.
 
+## Certificate identity assumptions
+
+Date: 2026-10-11. The Core certificate handoff separates User identity from
+integration workload identity. A User certificate will carry the immutable
+User universally unique identifier (UUID) in a Uniform Resource Identifier
+(URI) subject alternative name. Its common name is for display.
+Core will publish accepted public credential records on the User object.
+The exact annotation key and Integration Manifest schema are still open.
+
+This repository now parses the proposed version-one credential record without
+reading certificate Secrets. The parser rejects malformed or duplicate records
+as one set. It checks the fingerprint, positive serial number, issuer
+identifier, and validity times. A record method rejects use outside its
+validity interval. No production caller uses this parser yet. The deployed
+operator still creates only human UserBindings and does not provision native
+certificate mappings. The existing trusted User UUID header remains the
+request identity boundary. TAKServer connection work remains deferred.
+
 ## MediaMTX package checkpoint
 
 Date: 2026-10-11. The Zarf package now includes the pinned MediaMTX 1.21.2

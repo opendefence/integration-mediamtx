@@ -100,6 +100,29 @@ injects the verified User UUID. The integration currently accepts
 `X-OpenDefence-User-UUID` by default. It does not run ForwardAuth or inspect
 client certificates.
 
+## Certificate identity metadata
+
+Core plans to publish accepted User certificate records in one User annotation.
+Each record has a Secure Hash Algorithm 256 (SHA-256) fingerprint of the leaf
+certificate's Distinguished Encoding Rules (DER) bytes. It also has a positive
+serial number, an issuer identifier, and validity times. Core must derive
+these fields from the issued certificate and publish only credentials that it
+accepts. Issuance alone does not activate a credential. Consumers must deny a
+disabled User even when the annotation still contains a record.
+
+This integration can parse the proposed version-one record format. Missing or
+malformed metadata yields no credential records. A consumer must also check
+the account state and each certificate's validity time. It must not use the
+certificate common name as an identity fallback. The final annotation key and
+issuer identifier format are still open. MediaMTX does not use these records
+for User access today; Core still supplies the verified User UUID in the
+trusted HTTP header.
+
+An integration workload is not a User. Core plans a separate Integration
+Manifest for workload identity and client credentials. Do not create service
+Users or UserBindings for it. The manifest schema and connection contract are
+still open. TAKServer integration work remains deferred.
+
 ## Acceptance cases
 
 1. A User has a `Synced=True` binding but no effective MediaMTX Role or
