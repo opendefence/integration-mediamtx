@@ -25,13 +25,13 @@ from opendefence_integration_mediamtx.credentials import active_user, ensure_use
 class BindingApplication(Application):
     @override
     def manifests(self, **options: Any) -> list[dict[str, Any]]:
-        # Core owns the UserBinding CRD that Cloudcoil discovers on the shared model.
+        # Core owns the shared CRDs that Cloudcoil discovers on its models.
         return [
             document
             for document in super().manifests(**options)
             if not (
                 document["kind"] == "CustomResourceDefinition"
-                and document["metadata"]["name"] == "userbindings.platform.opendefence.fi"
+                and document["spec"]["group"] == "platform.opendefence.fi"
             )
         ]
 

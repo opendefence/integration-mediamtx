@@ -51,6 +51,7 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
         rendered = template.replace(NAMESPACE_TEMPLATE, namespace)
         rendered = rendered.replace("{{ .Constants.OPERATOR_IMAGE }}", image)
         documents = list(yaml.safe_load_all(rendered))
+        assert all(document["kind"] != "CustomResourceDefinition" for document in documents)
         assert all(
             document["metadata"]["namespace"] == namespace
             for document in documents

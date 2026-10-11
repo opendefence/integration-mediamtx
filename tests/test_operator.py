@@ -9,15 +9,21 @@ from uuid import UUID
 import httpx
 import pytest
 from cloudcoil.apimachinery import ObjectMeta, Time
+from cloudcoil.application import Application
 from cloudcoil.client import AsyncAPIClient
 from cloudcoil.controller import Request, ResourceKey
 from cloudcoil.errors import APIError, ResourceConflict
 from cloudcoil.models.kubernetes.core.v1 import Secret
 
-from lib_opendefence_core.models.v1alpha1 import ResolvedRef, User, UserBinding, UserSpec, UserStatus
+from lib_opendefence_core.models.v1alpha1 import Integration, ResolvedRef, User, UserBinding, UserSpec, UserStatus
 
 from opendefence_integration_mediamtx.bindings import USER_UUID_ANNOTATION
-from opendefence_integration_mediamtx.operator import binding_keys, create_operator, reconcile_binding
+from opendefence_integration_mediamtx.operator import (
+    BindingApplication,
+    binding_keys,
+    create_operator,
+    reconcile_binding,
+)
 
 NAMESPACE = "integration-mediamtx"
 SUBJECT = UUID("01234567-89ab-cdef-0123-456789abcdef")
@@ -336,6 +342,22 @@ def test_status_only_role_and_group_projection_update_requeues_the_same_binding(
         == binding_keys(updated, namespace=NAMESPACE)
         == [ResourceKey(NAME, NAMESPACE)]
     )
+
+
+def test_manifest_emission_excludes_all_shared_core_crds() -> None:
+    app = BindingApplication(
+        "mediamtx-operator",
+        *create_operator(namespace=NAMESPACE).controllers,
+        resources=[User, UserBinding, Integration],
+        namespace=NAMESPACE,
+    )
+    raw = Application.manifests(app)
+    assert {document["metadata"]["name"] for document in raw if document["kind"] == "CustomResourceDefinition"} == {
+        "users.platform.opendefence.fi",
+        "userbindings.platform.opendefence.fi",
+        "integrations.platform.opendefence.fi",
+    }
+    assert app.manifests() == [document for document in raw if document["kind"] != "CustomResourceDefinition"]
 
 
 def test_offline_manifests_preserve_core_ownership_and_namespace_scoping() -> None:
