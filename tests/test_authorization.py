@@ -15,7 +15,7 @@ from cloudcoil.models.kubernetes.core.v1 import Secret
 from lib_opendefence_core.models.v1alpha1 import User, UserSpec
 
 from opendefence_integration_mediamtx.callback import AuthCallback
-from opendefence_integration_mediamtx.credentials import ensure_user_password
+from opendefence_integration_mediamtx.credentials import CONTROL_USER, control_password, ensure_user_password
 
 NAMESPACE = "integration-mediamtx"
 SUBJECT = UUID(int=1)
@@ -76,6 +76,40 @@ def clients(http: httpx.AsyncClient) -> tuple[AsyncAPIClient[User], AsyncAPIClie
             client=http,
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_control_identity_is_atomic_api_only_and_needs_no_user() -> None:
+    kube = Kubernetes()
+    async with httpx.AsyncClient(
+        base_url="https://kubernetes.test", transport=httpx.MockTransport(kube.respond)
+    ) as http:
+        users, passwords = clients(http)
+        async with httpx.AsyncClient(
+            base_url="https://callback.test",
+            transport=httpx.ASGITransport(app=cast(Any, AuthCallback(users, passwords))),
+        ) as callback:
+            payload = {"user": CONTROL_USER, "password": str(UUID(int=0)), "action": "api"}
+            assert (await callback.post(ROUTE, json=payload)).status_code == 403
+            assert not kube.secrets
+            issued = await asyncio.gather(*(control_password(passwords, create=True) for _ in range(8)))
+            assert len(set(issued)) == 1 and len(issued[0]) == 43
+            assert await control_password(passwords, create=True) == issued[0]
+            payload["password"] = issued[0]
+            assert (await callback.post(ROUTE, json=payload)).status_code == 204
+            for invalid in (
+                {"password": issued[0] + "x"},
+                {"action": "metrics"},
+                {"action": "pprof"},
+                {"action": "read", "protocol": "rtsp", "path": "live/ipcam/alpha"},
+                {"action": "publish", "protocol": "rtsp", "path": "live/ipcam/alpha"},
+                {"path": "live/ipcam/alpha"},
+                {"protocol": "rtsp"},
+            ):
+                assert (await callback.post(ROUTE, json=payload | invalid)).status_code == 403
+            kube.secrets[CONTROL_USER]["metadata"]["labels"] = {}
+            assert (await callback.post(ROUTE, json=payload)).status_code == 403
+    assert not any("/users/" in request.url.path for request in kube.requests)
 
 
 @pytest.mark.asyncio

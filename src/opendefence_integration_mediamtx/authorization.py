@@ -9,7 +9,7 @@ from cloudcoil.models.kubernetes.core.v1 import Secret
 from lib_opendefence_core.models.v1alpha1 import User
 
 from opendefence_integration_mediamtx.auth import AuthRequest
-from opendefence_integration_mediamtx.credentials import active_user, user_password
+from opendefence_integration_mediamtx.credentials import CONTROL_USER, active_user, control_password, user_password
 from opendefence_integration_mediamtx.paths import CALLSIGN_PATTERN, parse_path
 
 _PROTOCOLS = frozenset({"rtsp", "rtmp", "hls", "webrtc", "srt", "moq"})
@@ -30,6 +30,12 @@ async def authorize_user(payload: object, users: AsyncAPIClient[User], passwords
         raise ValueError("A cluster-scoped User client is required")
     try:
         request = AuthRequest.from_payload(payload)
+        if request.user == CONTROL_USER:
+            return bool(
+                request.action == "api"
+                and _valid_scope(request)
+                and hmac.compare_digest(request.password.encode("utf-8"), (await control_password(passwords)).encode())
+            )
         if not re.fullmatch(CALLSIGN_PATTERN, request.user) or not request.password or not _valid_scope(request):
             return False
         user = await users.get(request.user)

@@ -4,6 +4,7 @@ import logging
 import os
 from datetime import UTC, datetime
 from functools import partial
+from collections.abc import AsyncIterator
 from typing import Any, override
 from uuid import UUID
 
@@ -19,7 +20,7 @@ from opendefence_integration_mediamtx.bindings import (
     ensure_binding,
     set_binding_pending,
 )
-from opendefence_integration_mediamtx.credentials import active_user, ensure_user_password
+from opendefence_integration_mediamtx.credentials import active_user, control_password, ensure_user_password
 
 
 class BindingApplication(Application):
@@ -102,7 +103,7 @@ def create_operator(*, namespace: str, config: Config | None = None) -> Applicat
         reconcile_timeout=30,
     )
     controller.watch(User, mapper=partial(binding_keys, namespace=namespace))
-    return BindingApplication(
+    application = BindingApplication(
         "mediamtx-operator",
         controller,
         namespace=namespace,
@@ -115,6 +116,14 @@ def create_operator(*, namespace: str, config: Config | None = None) -> Applicat
         ),
         health=HealthServer(host="0.0.0.0", port=8080),  # nosec B104 # Pod diagnostics, protected by deployment networking.
     )
+
+    @application.lifespan()
+    async def credentials() -> AsyncIterator[None]:
+        passwords = await Secret.async_client(namespace=namespace, cached=False)
+        await control_password(passwords, create=True)
+        yield
+
+    return application
 
 
 def main() -> None:

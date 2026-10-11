@@ -12,6 +12,23 @@ and no new Core policy projection fields.
 Approved Users stay as permanent records after revocation. Deletion and
 recreation tests use only unapproved Users.
 
+## Stream discovery adapter checkpoint
+
+Date: 2026-10-11. `mediamtx-operator` creates a stable control password in
+`Secret/mediamtx-control` at startup. The callback permits that identity to
+use only the MediaMTX control API. It grants no media read or publish access
+and needs no User record. The callback never creates the Secret.
+
+The new path adapter reads every MediaMTX path page. It rejects incomplete,
+duplicate, or changing page results. It returns only ready canonical paths.
+The package still disables the control API at this checkpoint. TAK publication
+and deployment wiring are the next step.
+
+`task check` passed 273 tests, Ruff, and strict Pyrefly. The whole-repository
+ponytail-audit assumed one instance and a few hundred Users. It found no new
+defect. Existing session cleanup, certificate reload, and User watch limits
+remain recorded work.
+
 ## TAK administrator access checkpoint
 
 Date: 2026-10-11. TAK integration work is in scope again. The existing
