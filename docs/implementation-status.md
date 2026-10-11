@@ -4,6 +4,19 @@ Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator t
 MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
+## Grant reservation checkpoint
+
+Date: 2026-10-11. Added an internal Secret-backed reservation ledger.
+Atomic creation and version-guarded updates keep one grant identifier per
+idempotency key. The adapter limits each User to eight active reservations
+and 64 retained entries. A cleanup marker releases active capacity without
+reactivating a finished key. The unit tests cover concurrent equal requests,
+quota, changed requests, expiry, ownership and update conflicts.
+
+`task check` passed Ruff, strict Pyrefly and 223 tests. Grant Secret records,
+garbage collection and issuance remain unimplemented. The operator has no
+Secret permissions. See [grant reservations](m2-reservations.md).
+
 ## Packaged operator deployment checkpoint
 
 Date: 2026-10-11. The local-dev Zarf overlay was deployed to an isolated Kind
@@ -419,9 +432,9 @@ was requested asynchronously; no fallback authority is assumed. Core owns
 certificate activation; media sessions are not activation evidence. Validate
 header stripping and trusted-only ingress in deployment; do not build ForwardAuth here.
 
-Grant storage has a documented design, not persistence proof. Implement and
-test concurrent reservation/create, idempotent retries, conditional updates,
-revocation, restart recovery and garbage collection before exposing issuance.
+The internal reservation ledger has unit proof for concurrency, idempotent
+retries and conditional updates. Grant Secret creation, revocation, restart
+recovery and garbage collection remain before issuance.
 The self-use/sharing purpose decision also blocks that endpoint.
 
 HTTP prefix routing needs a base-approved response rewrite or another agreed

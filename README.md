@@ -87,6 +87,8 @@ runs these observations with `task operator:run`. Provisioning stays incomplete
 until its Core policy and MediaMTX configuration contracts are implemented.
 The [M2 session adapter](docs/m2-sessions.md) can remove connections by grant
 username after denial is persisted; it is not connected to a public API yet.
+The [M2 reservation adapter](docs/m2-reservations.md) stores bounded grant
+reservations in Kubernetes Secrets. It is not connected to issuance yet.
 
 ## Zarf package
 
