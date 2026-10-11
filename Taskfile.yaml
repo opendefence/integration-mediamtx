@@ -70,7 +70,8 @@ tasks:
   package:image:
     desc: Build the mediamtx-operator image and its local OCI archive
     vars:
-      IMAGE: zarf.internal/opendefence/integration-mediamtx:0.1.0
+      IMAGE:
+        sh: zarf tools yq '.components[] | select(.name == "operator") | .imageArchives[0].images[0]' zarf.yaml
       ARCH: '{{.ARCH | default "amd64"}}'
       CONTAINER_RUNTIME: '{{.CONTAINER_RUNTIME | default "docker"}}'
     preconditions:

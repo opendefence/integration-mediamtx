@@ -12,6 +12,33 @@ and no new Core policy projection fields.
 Approved Users stay as permanent records after revocation. Deletion and
 recreation tests use only unapproved Users.
 
+## CI package checkpoint
+
+Date: 2026-10-11. The Checks workflow now builds AMD64 and ARM64 Zarf packages
+after validation. Main and same-repository PR runs publish to
+`ghcr.io/opendefence/packages/integration-mediamtx`. Fork PRs and Dependabot
+runs retain build artifacts only. Tag rules follow `config-ci-library`'s
+`publish-image` action. Main gets version, date, `-local`, `main`, and `latest`
+tags. PR tags include the PR number. See [CI packages](../README.md#ci-packages).
+
+The publish job uses base's keyless signing pattern. It signs both archives
+with GitHub's OpenID Connect identity before the first upload. It publishes
+architectures in sequence under each tag. Each build has a distinct package
+version. The bundled image and Integration record use that same version.
+
+`task check` passed 258 tests, Ruff, and strict Pyrefly. All applicable
+pre-commit checks passed. Zarf lint and both overlay renders passed. Actionlint
+passed. The pinned metadata action produced
+the expected tags for main, PR, and manual runs against a local test API.
+An ARM64 package built with a PR version. Inspection of that archive confirmed
+the bundled image, both Deployment container images, and Integration version.
+Tests reject missing architecture files and signing or publishing failures.
+The required ponytail-audit assumed one MediaMTX instance and a few hundred
+Users. It found no new defect. Existing credential delivery, session cleanup,
+certificate reload, and User watch limits remain documented work.
+Hosted CI, the AMD64 build, GitHub OIDC signing, and GHCR publication were not
+executed locally. No package was pushed to an external registry.
+
 ## Integration registration checkpoint
 
 Date: 2026-10-11. Updated the shared Core library to `0.2.2+261011`.
@@ -661,6 +688,7 @@ while credential delivery and session cleanup remain incomplete. Core policy
 provenance, real RTMPS, SRT, WebRTC/ICE and MoQ clients, Core policy and
 MediaMTX provisioning faults, trusted ingress, NetworkPolicy enforcement,
 offline installation, AMD64, and hosted CI execution are not checked.
-Image publishing on `arc-runner-set` is deferred.
+CI builds the application image into the Zarf archive and publishes the package.
+Hosted signing and registry publication remain untested locally.
 The Core companion document was located during M1. Its source hash and the
 user-supplied companion search URLs are recorded in `docs/m1-contracts.md`.

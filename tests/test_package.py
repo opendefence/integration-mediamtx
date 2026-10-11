@@ -17,7 +17,9 @@ def test_integration_registration_uses_the_shared_model_without_extra_roles() ->
     template = (ROOT / component["manifests"][0]["files"][0]).read_text()
     for values_file in ("values/values.yaml", "values/local-dev.yaml"):
         namespace = yaml.safe_load((ROOT / values_file).read_text())["namespace"]
-        document = yaml.safe_load(template.replace(NAMESPACE_TEMPLATE, namespace))
+        rendered = template.replace(NAMESPACE_TEMPLATE, namespace)
+        rendered = rendered.replace("{{ .Pkg.Metadata.Version | quote }}", f'"{package["metadata"]["version"]}"')
+        document = yaml.safe_load(rendered)
         registration = Integration.model_validate(document)
         assert registration.kind == "Integration" and registration.name == namespace
         assert registration.metadata and registration.metadata.namespace is None
@@ -39,7 +41,9 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
     template = (ROOT / component["manifests"][0]["files"][0]).read_text()
     for values_file in ("values/values.yaml", "values/local-dev.yaml"):
         namespace = yaml.safe_load((ROOT / values_file).read_text())["namespace"]
-        documents = list(yaml.safe_load_all(template.replace(NAMESPACE_TEMPLATE, namespace)))
+        rendered = template.replace(NAMESPACE_TEMPLATE, namespace)
+        rendered = rendered.replace("{{ .Pkg.Metadata.Version }}", package["metadata"]["version"])
+        documents = list(yaml.safe_load_all(rendered))
         assert all(
             document["metadata"]["namespace"] == namespace
             for document in documents
@@ -73,6 +77,20 @@ def test_zarf_package_matches_the_operator_overlay() -> None:
             "--tls-key",
             "/tls/tls.key",
         ]
+
+
+def test_build_version_changes_workload_image_tags_and_registration_together() -> None:
+    version = "0.1.0-pr42-20261011T1600-123.1"
+    operator = (ROOT / "manifests/operator/operator.yaml.tmpl").read_text()
+    rendered = operator.replace(NAMESPACE_TEMPLATE, "integration-mediamtx-dev")
+    rendered = rendered.replace("{{ .Pkg.Metadata.Version }}", version)
+    deployment = next(document for document in yaml.safe_load_all(rendered) if document["kind"] == "Deployment")
+    images = {container["image"] for container in deployment["spec"]["template"]["spec"]["containers"]}
+    assert images == {f"zarf.internal/opendefence/integration-mediamtx:{version}"}
+    integration = (ROOT / "manifests/integration/integration.yaml.tmpl").read_text()
+    rendered = integration.replace(NAMESPACE_TEMPLATE, "integration-mediamtx-dev")
+    rendered = rendered.replace("{{ .Pkg.Metadata.Version | quote }}", f'"{version}"')
+    assert Integration.model_validate(yaml.safe_load(rendered)).spec.version == version
 
 
 def test_media_network_policy_keeps_control_private_and_matches_protocol_ports() -> None:

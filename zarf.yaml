@@ -1,6 +1,7 @@
 kind: ZarfPackageConfig
 metadata:
   name: integration-mediamtx
+  # CI sets this version and the bundled image tag for each build.
   version: 0.1.0
   description: OpenDefence MediaMTX server and credential operator
 values:

@@ -94,7 +94,7 @@ spec:
       serviceAccountName: mediamtx-operator
       containers:
       - name: operator
-        image: zarf.internal/opendefence/integration-mediamtx:0.1.0
+        image: zarf.internal/opendefence/integration-mediamtx:{{ .Pkg.Metadata.Version }}
         args:
         - run
         env: &id001
@@ -131,7 +131,7 @@ spec:
             drop:
             - ALL
       - name: auth
-        image: zarf.internal/opendefence/integration-mediamtx:0.1.0
+        image: zarf.internal/opendefence/integration-mediamtx:{{ .Pkg.Metadata.Version }}
         command:
         - mediamtx-auth
         args:

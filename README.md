@@ -222,3 +222,45 @@ values file with `VALUES_FILE`, and set both `namespace` and `domain` in that
 file. Create that namespace before deployment.
 The package has not been deployed to a production cluster. The private callback
 authorizes media passwords. Public credential delivery remains pending.
+
+## CI packages
+
+The Checks workflow builds AMD64 and ARM64 Zarf packages after the Python and
+package checks pass. It runs on pull requests (PRs), pushes to `main`, and
+manual dispatch. Each architecture uses a native GitHub-hosted runner. The
+workflow keeps the package archives as artifacts for seven days.
+
+In this repository, pushes to `main`, same-repository PRs, and manual runs
+publish to `ghcr.io/opendefence/packages/integration-mediamtx`. Fork PRs and
+Dependabot runs produce artifacts only. The publish job uses `GITHUB_TOKEN`
+with `packages: write`. It requires both architecture builds to pass.
+Like the base workflow, it signs each package with GitHub's OpenID Connect
+(OIDC) identity before publishing. Only the publish job receives
+`id-token: write`. Downloaded build artifacts are unsigned; published packages
+contain the signature.
+
+Tags follow the shared
+[publish-image action](https://github.com/pvarki/config-ci-library/blob/1786399bf62c2b691f1e8fb9dcfc7a0be72a2846/.github/actions/publish-image/action.yml).
+For base version `0.1.0`, PR 42, and UTC build time `20261011T1600`:
+
+| Run | Package tags |
+| --- | --- |
+| `main` | `0.1.0-20261011T1600`, `0.1.0`, `0.1.0-local`, `main`, `latest` |
+| PR 42 | `0.1.0-pr42-20261011T1600`, `0.1.0-pr42`, `42-merge` |
+| Manual run on `feature/test` | `feature-test` |
+
+The base version comes from `pyproject.toml`. CI sets the package version to
+the first tag above plus the GitHub run ID and attempt, for example
+`0.1.0-pr42-20261011T1600-123.1`. This version also sets the bundled
+`mediamtx-operator` image tag and the Integration record version. A new build
+therefore changes the Deployment image. Local builds keep the version in
+`zarf.yaml`.
+
+Each published tag contains both architectures. The publish job uploads them
+in sequence because Zarf updates a shared image index. Runs for the same PR
+or branch also run in sequence. The job summary lists the published tags.
+To download a package, select its architecture:
+
+```sh
+zarf package pull oci://ghcr.io/opendefence/packages/integration-mediamtx:0.1.0-pr42 --architecture arm64
+```
