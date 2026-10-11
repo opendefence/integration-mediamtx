@@ -2,7 +2,7 @@ kind: ZarfPackageConfig
 metadata:
   name: integration-mediamtx
   version: 0.1.0
-  description: OpenDefence MediaMTX binding observation operator
+  description: OpenDefence MediaMTX server and binding operator
 values:
   files:
     - values/values.yaml
@@ -19,6 +19,15 @@ components:
         template: true
         files:
           - manifests/operator/operator.yaml.tmpl
+  - name: media
+    required: true
+    images:
+      - docker.io/bluenviron/mediamtx:1.21.2@sha256:c7540465f868a02652118bea5a0daab12a29ac0f6cb8485abd535939ecddf886
+    manifests:
+      - name: media
+        template: true
+        files:
+          - manifests/media/media.yaml.tmpl
   - name: media-networking
     required: true
     manifests:

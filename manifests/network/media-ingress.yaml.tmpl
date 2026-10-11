@@ -43,6 +43,12 @@ spec:
           port: 8189 # WebRTC ICE media
         - protocol: UDP
           port: 8890 # SRT
+        - protocol: TCP
+          port: 8892 # MoQ HTTP/2
+        - protocol: UDP
+          port: 8892 # MoQ HTTP/3
+        - protocol: UDP
+          port: 8893 # MoQ native QUIC
     - from:
         - podSelector:
             matchLabels:

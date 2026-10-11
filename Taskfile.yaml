@@ -49,7 +49,7 @@ tasks:
       - uv run --locked scripts/render_package.py
 
   package:check:
-    desc: Validate the Zarf package and its production and local-dev overlays
+    desc: Validate the operator and MediaMTX package in both overlays
     preconditions:
       - sh: command -v zarf >/dev/null
         msg: Install Zarf 0.87.0 before validating the package
@@ -68,7 +68,7 @@ tasks:
       - zarf dev inspect manifests . --values {{.VALUES_FILE | default "values/local-dev.yaml" | shellQuote}}
 
   package:image:
-    desc: Build the production operator image and its local OCI archive
+    desc: Build the operator image and its local OCI archive
     vars:
       IMAGE: zarf.internal/opendefence/integration-mediamtx:0.1.0
       ARCH: '{{.ARCH | default "amd64"}}'
@@ -82,7 +82,7 @@ tasks:
       - '{{if eq .CONTAINER_RUNTIME "podman"}}podman save --format oci-archive{{else}}docker save{{end}} -o .local/operator-image.tar {{.IMAGE | shellQuote}}'
 
   package:build:
-    desc: Build the operator image and offline Zarf package archive
+    desc: Build the operator and MediaMTX offline Zarf package archive
     vars:
       ARCH: '{{.ARCH | default "amd64"}}'
       BUILD_DIR: '{{.BUILD_DIR | default "dist"}}'
@@ -93,6 +93,22 @@ tasks:
       - task: package:check
       - task: package:image
       - zarf package create . --architecture {{.ARCH | shellQuote}} --confirm --output {{.BUILD_DIR | shellQuote}}
+
+  package:deploy:
+    desc: Deploy both workloads from a Zarf package into the selected namespace
+    requires:
+      vars: [PACKAGE_FILE]
+    vars:
+      VALUES_FILE: '{{.VALUES_FILE | default "values/local-dev.yaml"}}'
+    preconditions:
+      - sh: command -v zarf >/dev/null
+        msg: Install Zarf 0.87.0 before deploying the package
+      - sh: test -f {{.PACKAGE_FILE | shellQuote}}
+        msg: Set PACKAGE_FILE to a built Zarf package archive
+      - sh: test -f {{.VALUES_FILE | shellQuote}}
+        msg: Set VALUES_FILE to an existing values file
+    cmds:
+      - zarf package deploy {{.PACKAGE_FILE | shellQuote}} --connected --confirm --values {{.VALUES_FILE | shellQuote}}
 
   operator:run:
     desc: Run the binding operator against the selected Kubernetes context

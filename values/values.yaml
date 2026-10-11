@@ -1,2 +1,4 @@
 # Dedicated namespace created before deployment; Zarf does not own its lifecycle.
 namespace: integration-mediamtx
+# Public media hostname. Override before production deployment.
+domain: opendefence.invalid

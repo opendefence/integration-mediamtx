@@ -1,8 +1,8 @@
 # OpenDefence MediaMTX integration
 
 This repository starts the replacement for the legacy MediaMTX integration.
-It includes policy adapters and a binding observation operator. The public API
-and MediaMTX provisioning remain pending. The
+It includes policy adapters, a binding observation operator, and a packaged
+MediaMTX server. User authorization and stream provisioning remain pending. The
 [original implementation plan](docs/integration-mediamtx-plan.md) and
 [original API draft](docs/openapi.json) are design references. See the
 [implementation status](docs/implementation-status.md) for current work and evidence.
@@ -75,7 +75,7 @@ and [reproducible spike](spikes/m1/README.md) record the first integration check
 and the remaining Core and routing gates.
 The [M2 policy implementation](docs/m2-policy.md) adds canonical stream paths and
 scoped admission checks with fresh Core identity and Role inputs. The public API
-and MediaMTX provisioning remain pending their shared contracts.
+and stream provisioning remain pending their shared contracts.
 The [Core User projection handoff](docs/core-media-policy-handoff.md) lists the
 Core identity and effective Role data that this integration needs. This
 integration defines MediaMTX Role meanings and access rules.
@@ -105,29 +105,38 @@ connected to issuance or the operator yet.
 
 ## Zarf package
 
-`zarf.yaml` packages the current binding observation operator and its local OCI
-image archive. Base, Core and Core's shared CRDs must be installed first. Create
+`zarf.yaml` packages the binding operator and MediaMTX 1.21.2. It builds the
+operator image locally and includes the MediaMTX image in the offline package.
+Base, Core and Core's shared CRDs must be installed first. Create
 a dedicated namespace before deploying; this package leaves namespace lifecycle
 with the cluster owner so removing it cannot delete unrelated objects.
+The package installs a MediaMTX Deployment, ClusterIP Service, configuration,
+and a certificate from base's `public-issuer`. The media configuration has no
+users. It denies all stream and control requests until an authorization service
+is ready. The control API, metrics, and profiling listeners are disabled.
+
 The package also installs ingress `NetworkPolicy` rules. They select the operator
 with no allowed Pod ingress and allow Traefik Pods in `traefik-system` to reach
-MediaMTX's HLS, WebRTC signaling, RTSPS, RTMPS, SRT and WebRTC ICE ports. The
-operator Pod is allowed to reach MediaMTX's private control API on port 9997.
-Other NetworkPolicies can add permissions. Future MediaMTX Pods must use
+MediaMTX's HLS, WebRTC signaling, RTSPS, RTMPS, SRT, WebRTC ICE, and MoQ ports. The
+operator Pod may reach MediaMTX's private control API on port 9997 when that API
+is enabled. Other NetworkPolicies can add permissions. The MediaMTX Pod uses
 the `app.kubernetes.io/name: mediamtx` label and the pinned
 [MediaMTX 1.21.2 ports](https://github.com/bluenviron/mediamtx/blob/v1.21.2/mediamtx.yml)
-for these rules to apply. RTSPS and RTMPS need strict encryption, and RTSPS
-uses TCP transport in this policy. These
-policies create no public listeners. The current base Traefik chart exposes only
-HTTP/HTTPS, so native TCP/UDP entrypoints, media Services and the authenticated
-MediaMTX workload remain deployment work. NetworkPolicy enforcement must be
+for these rules to apply. RTSPS, RTMPS, and MoQ use the issued certificate.
+RTSPS and RTMPS use strict encryption. RTSPS uses TCP transport.
+The current base Traefik chart exposes only
+HTTP/HTTPS. Public routes and native TCP/UDP entrypoints remain deployment work.
+NetworkPolicy enforcement must be
 verified with the cluster's network plugin before relying on the rules.
-Plain RTSP/RTMP and MoQ remain outside the approved integration protocol set.
+Plain RTSP and RTMP remain disabled. MoQ grant issuance is pending.
 
 Deployment settings use Zarf package values, following Core's overlay names:
 `values/values.yaml` is the production default (`integration-mediamtx`) and
 `values/local-dev.yaml` selects `integration-mediamtx-dev` for local development.
-The `namespace` value changes the generated RBAC and Deployment namespace.
+The `namespace` value selects the dedicated namespace for both workloads.
+The `domain` value sets the media certificate name and WebRTC host. Set it to a
+real host before production deployment. The production default
+`opendefence.invalid` cannot receive a certificate.
 The Pod reads `CLOUDCOIL_NAMESPACE` from its own namespace through Kubernetes;
 no separate Pod environment setting is needed. For a standalone install, pass a
 values file or `--set-values namespace=<your-dedicated-namespace>` to Zarf.
@@ -149,17 +158,16 @@ task package:build ARCH=arm64 CONTAINER_RUNTIME=podman
 The archive is `dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst`.
 For an AMD64 Docker host, omit those overrides (Docker 25 or newer is needed
 for a compatible [Zarf image archive](https://docs.zarf.dev/ref/components/)).
-The build creates an ignored OCI image
-archive in `.local/` and packages the image without a published registry tag.
+The build creates an ignored operator OCI image archive in `.local/`. Zarf pulls
+the pinned MediaMTX image while it creates the package.
 After selecting the intended Kubernetes context and creating the namespace,
 deploy with:
 
 ```sh
-zarf package deploy dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst \
-  --connected --confirm --values values/local-dev.yaml
+task package:deploy PACKAGE_FILE=dist/zarf-package-integration-mediamtx-arm64-0.1.0.tar.zst
 ```
 
 For production or standalone deployments, supply the appropriate values file
-or set `namespace` directly. The package
-has not been deployed to a production cluster. It contains the operator only;
-the MediaMTX workload and public API follow when their contracts are ready.
+with `VALUES_FILE`. Set both `namespace` and `domain` in that file. The package
+has not been deployed to a production cluster. Its media server rejects access
+until the public API and authorization service are connected.

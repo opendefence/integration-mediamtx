@@ -1,4 +1,4 @@
-"""Keep the packaged image and namespace settings aligned with the operator overlay."""
+"""Keep packaged workloads, image references, and namespaces aligned."""
 
 import tomllib
 from pathlib import Path
@@ -66,6 +66,52 @@ def test_media_network_policy_keeps_control_private_and_matches_protocol_ports()
             ("TCP", 1936),
             ("UDP", 8189),
             ("UDP", 8890),
+            ("TCP", 8892),
+            ("UDP", 8892),
+            ("UDP", 8893),
         }
         assert control["from"] == [{"podSelector": {"matchLabels": {"app.kubernetes.io/name": "mediamtx-operator"}}}]
         assert control["ports"] == [{"protocol": "TCP", "port": 9997}]
+
+
+def test_media_component_bundles_a_fail_closed_server_in_the_selected_namespace() -> None:
+    package = yaml.safe_load((ROOT / "zarf.yaml").read_text())
+    component = next(item for item in package["components"] if item["name"] == "media")
+    image = (
+        "docker.io/bluenviron/mediamtx:1.21.2@sha256:c7540465f868a02652118bea5a0daab12a29ac0f6cb8485abd535939ecddf886"
+    )
+    assert component["required"] is True
+    assert component["images"] == [image]
+    template = (ROOT / component["manifests"][0]["files"][0]).read_text()
+    for values_file in ("values/values.yaml", "values/local-dev.yaml"):
+        values = yaml.safe_load((ROOT / values_file).read_text())
+        rendered = template.replace(NAMESPACE_TEMPLATE, values["namespace"])
+        rendered = rendered.replace("{{ .Values.domain | quote }}", f'"{values["domain"]}"')
+        documents = {item["kind"]: item for item in yaml.safe_load_all(rendered)}
+        assert set(documents) == {"Certificate", "ConfigMap", "Deployment", "Service"}
+        assert {item["metadata"]["namespace"] for item in documents.values()} == {values["namespace"]}
+        assert documents["Certificate"]["spec"]["dnsNames"] == [values["domain"]]
+        config = yaml.safe_load(documents["ConfigMap"]["data"]["mediamtx.yml"])
+        assert config["authInternalUsers"] == []
+        assert config["api"] is False and config["metrics"] is False and config["pprof"] is False
+        assert config["moq"] is True
+        assert config["moqServerKey"] == "/tls/tls.key"
+        assert config["moqServerCert"] == "/tls/tls.crt"
+        assert config["rtspEncryption"] == config["rtmpEncryption"] == "strict"
+        deployment = documents["Deployment"]["spec"]["template"]
+        assert deployment["metadata"]["labels"] == {"app.kubernetes.io/name": "mediamtx"}
+        assert deployment["spec"]["containers"][0]["image"] == image
+        assert deployment["spec"]["containers"][0]["command"] == ["/mediamtx", "/config/mediamtx.yml"]
+        assert documents["Service"]["spec"]["selector"] == deployment["metadata"]["labels"]
+        service_ports = documents["Service"]["spec"]["ports"]
+        assert {(port["protocol"], port["port"]) for port in service_ports} == {
+            ("TCP", 8888),
+            ("TCP", 8889),
+            ("TCP", 8322),
+            ("TCP", 1936),
+            ("UDP", 8189),
+            ("UDP", 8890),
+            ("TCP", 8892),
+            ("UDP", 8892),
+            ("UDP", 8893),
+        }

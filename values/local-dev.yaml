@@ -1,2 +1,4 @@
 # Separate integration namespace for local development on the shared base/Core cluster.
 namespace: integration-mediamtx-dev
+# Local name served by the base development cluster.
+domain: local-dev.opendefence.fi

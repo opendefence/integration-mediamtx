@@ -1,9 +1,31 @@
 # Implementation status
 
 Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator tested.
-MediaMTX provisioning and public API authorization need Core's effective Role
-projection and the MediaMTX deployment.
+The MediaMTX server is packaged. Stream provisioning and public API authorization
+still need Core's effective Role projection and integration code.
 M3 has not started.
+
+## MediaMTX package checkpoint
+
+Date: 2026-10-11. The Zarf package now includes the pinned MediaMTX 1.21.2
+image, a server Deployment, a ClusterIP Service, and a certificate. It installs
+them in the selected integration namespace. The namespace must exist before
+deployment. The package does not own its lifecycle.
+
+The server uses strict RTSPS and RTMPS encryption. It also listens for HLS,
+WebRTC, SRT, and MoQ traffic. MoQ uses the package certificate. Its internal
+user list is empty. All stream requests are denied until the integration
+supplies authorization. MoQ grant issuance is pending. The control API,
+metrics, and profiling listeners are disabled. Base still needs public media
+routes and native TCP/UDP entrypoints. No public authorization service exists.
+
+`task check` passed 236 tests. `task package:check` passed Zarf lint and both
+overlay renders. Zarf built an ARM64 package with both images. A local ARM64
+MediaMTX container started as a non-root user with a read-only file system.
+It opened the selected protocol listeners, including MoQ over HTTP/2, HTTP/3,
+and QUIC. The MoQ TLS listener presented the mounted certificate. An
+unauthenticated HLS request returned 401. The shared development cluster has
+no `public-issuer`, so a live package deployment was not run.
 
 ## Grant retirement and retention checkpoint
 
