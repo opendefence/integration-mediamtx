@@ -15,6 +15,10 @@ for explicit lifecycle work. There is no finalizer or credential cleanup yet.
 
 User changes and binding changes enqueue reconciliation. Startup replays both
 resource lists; successful passes schedule another observation after 60 seconds.
+Core plans to write effective policy changes into the User object. A status-only
+User update maps to the same binding key. The current shared User model has no
+effective media-policy fields, so this operator still reports provisioning as
+pending after that event.
 Conflicts and dependency failures propagate to Cloudcoil's retry queue. Each
 attempt reads a new binding before its UID/resource-version guarded status
 write. An unchanged observation preserves transition times and makes no write.

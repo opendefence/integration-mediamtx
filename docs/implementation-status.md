@@ -4,6 +4,28 @@ Date: 2026-10-11. Gate: M2 policy, identity, bindings and the binding operator t
 MediaMTX provisioning and public API authorization need Core's effective-policy contract.
 M3 has not started.
 
+## Grant record checkpoint
+
+Date: 2026-10-11. Added an internal Secret-backed record for each reserved
+media grant. Atomic create returns the stored winning password on concurrent
+retries. Reads validate ownership and the full grant. Revocation uses Secret
+UID and resource-version guards and persists a denial before later session
+cleanup. The adapter is not connected to the public API or operator. The
+operator still has no Secret permission. See [grant records](m2-grants.md).
+
+`task check` passed Ruff, strict Pyrefly, and 232 tests. The live MediaMTX
+callback was not rerun. No user credential is issued in production.
+
+## Core User projection decision
+
+Date: 2026-10-11. Core will reconcile effective Role, Group, and other policy
+changes into each User object. This operator already watches Users and maps
+their events to UID-pinned bindings. The current Core User model has no
+effective media-policy fields, so the running operator still reports
+`Synced=False` and cannot authorize public access. The
+[Core handoff](core-media-policy-handoff.md) now asks for a versioned User status
+projection and a bounded freshness rule instead of a separate policy endpoint.
+
 ## Callsign path and role decision
 
 Date: 2026-10-11. The user selected the legacy callsign path rule for the first

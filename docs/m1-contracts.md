@@ -12,6 +12,9 @@ This update replaces the UUID-based media path and permission assumptions below.
 User and grant identity still use the immutable Core User UID.
 Only current `superadmin` Users and this integration's own service identity may
 use MediaMTX `api`, `metrics`, or `pprof`. Ordinary media grants cannot use them.
+Core's operator will project effective policy into User status after Role,
+Group, and assignment changes. This integration already watches User events.
+The projection schema and bounded freshness fields are still pending.
 
 ## Core evidence
 

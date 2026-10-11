@@ -8,13 +8,15 @@ behavior. It does not prescribe a Core API route or custom resource.
 
 Core identifies a User and records its direct Role and Group references. Core
 also observes UserBindings that integrations create. The current Role model has
-a display name but no permissions. The current Core API has enrollment,
-certificate, and health routes, but no effective media-policy route. The models
-do not say which streams a User may read, whether it may publish, whether it may
-share a read credential, or whether it is assigned to this integration.
+a display name but no permissions. The current User status has resolved
+references, but no effective media policy. The models do not say which streams
+a User may read, whether it may publish, whether it may share a read credential,
+or whether it is assigned to this integration.
 Core plans to let integrations define their own roles. Core will also always
-have a global `superadmin` role. This planned role support does not yet provide
-the integration with a current, resolved decision.
+have a global `superadmin` role. Core's operator will reconcile role, Group, and
+other policy changes into a projection on the User object. The integration's
+existing User watch will then enqueue that User's binding. The current Core
+model does not yet define the projection fields.
 
 A UserBinding is an integration-owned provisioning observation. The integration
 creates it and writes its `Synced` condition. Core watches it. A binding can be
@@ -47,8 +49,8 @@ Infrastructure and deny-by-default configuration can proceed independently.
 
 ## Required decision for each User
 
-Core must provide the following meanings through a trusted, versioned contract.
-It can provide a short-lived policy projection or a fresh decision service.
+Core must provide the following meanings in a versioned projection on User
+status. The integration will read that User and watch it for changes.
 
 | Input | Required meaning |
 | --- | --- |
@@ -103,29 +105,28 @@ pins grants to one binding generation. The integration also owns the exact media
 path, grant action and protocol, grant expiry, stored revocation, and MediaMTX
 configuration. A valid Core result cannot enlarge a grant's fixed scope.
 
-## Delivery and freshness choices for Core
+## User projection and freshness
 
-Core can choose either of these contract shapes:
+Core's operator will write the effective result to the User object whenever
+Role, Group, assignment, approval, or other policy inputs change. The existing
+integration operator watches cluster-scoped Users and maps each User event to
+its UID-pinned UserBinding. Startup listing and periodic reconciliation also
+enqueue work. The integration can inspect affected grants and sessions from
+that reconciliation. It does not need to watch Role and Group objects or run a
+second inheritance algorithm.
 
-1. A versioned policy projection that the integration can read and watch. Each
-   projection must have a short, authoritative validity interval. Core must
-   publish changes caused by every relevant source, and define ordering or
-   resync behavior after a missed event.
-2. An authenticated decision API for a subject, integration, and action. Media
-   actions also identify the exact stream. The API must return a bounded
-   validity interval or require a fresh call for each authorization. It must
-   also let the integration find affected grants and sessions when policy
-   changes.
-
-For either shape, agree on the schema version, service identity or read
-permission, error result, clock rules, maximum staleness, and behavior during a
-Core outage. Missing, malformed, expired, or unavailable policy must deny new
-admission. Define how a change reaches the integration so it can stop existing
-sessions. The original plan sets **15 seconds for policy freshness** and **30
-seconds for denial and session removal** as targets. They are not measured
-guarantees. Core's policy contract alone cannot remove a MediaMTX session if the
-MediaMTX control API is unavailable; that failure behavior needs a separate
-deployment decision.
+The User projection still needs a schema version, an effective revision,
+evaluation time, and an expiry or another bounded freshness rule. A watch event
+proves that one update arrived; it cannot prove that Core kept reconciling while
+its operator was unavailable. Define how Core reports incomplete references and
+how the integration detects an out-of-date projection after a missed event or
+restart. Missing, malformed, expired, or unavailable policy must deny new
+admission. Agree on clock rules and the maximum allowed delay from an upstream
+Role or Group edit to a User update. The original plan sets **15 seconds for
+policy freshness** and **30 seconds for denial and session removal** as targets.
+They are not measured guarantees. The integration cannot remove a MediaMTX
+session if its control API is unavailable; that failure behavior needs a
+separate deployment decision.
 
 Core remains responsible for user mutual Transport Layer Security (mTLS)
 authentication and for injecting a verified User identifier at the trusted API
@@ -171,14 +172,13 @@ verified value.
 
 ## Requested Core handoff result
 
-Please provide a versioned schema or API specification, one allowed and one
-denied example, the permission and assignment rules, the freshness and change
-delivery rules, and contract tests for the cases above. Specify the access
+Please provide the versioned User status projection schema, one allowed and one
+denied User example, the permission and assignment rules, the freshness and
+User-update rules, and contract tests for the cases above. Specify the access
 deadline representation, including an explicit no-deadline value. State which
-Core component computes the effective decision and which identity an
-integration uses to read it. Include the way integrations define roles and the
-effective `superadmin` signal. This is enough for the integration to implement a
-Core adapter and connect its existing policy tests to live decisions.
+Core controller computes the result. Include the way integrations define roles
+and the effective `superadmin` signal. This is enough for the integration to
+implement a User projection adapter and connect its policy tests to live data.
 
 The current source of this gap is visible in Core's
 [User](https://github.com/opendefence/core/blob/929149db8925881470a37281179f4829029a4354/src/lib_opendefence_core/models/v1alpha1/user.py),

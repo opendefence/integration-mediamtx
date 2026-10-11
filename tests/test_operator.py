@@ -13,7 +13,7 @@ from cloudcoil.client import AsyncAPIClient
 from cloudcoil.controller import Request, ResourceKey
 from cloudcoil.errors import APIError, ResourceConflict
 
-from lib_opendefence_core.models.v1alpha1 import User, UserBinding, UserSpec
+from lib_opendefence_core.models.v1alpha1 import ResolvedRef, User, UserBinding, UserSpec, UserStatus
 
 from opendefence_integration_mediamtx.bindings import USER_UUID_ANNOTATION
 from opendefence_integration_mediamtx.operator import binding_keys, create_operator, reconcile_binding
@@ -280,6 +280,19 @@ def test_user_events_map_only_canonical_cluster_identities(change: str) -> None:
         user.metadata.uid = None
     expected: list[ResourceKey] = [ResourceKey(NAME, NAMESPACE)] if change in {"valid", "deleting"} else []
     assert binding_keys(user, namespace=NAMESPACE) == expected
+
+
+def test_status_only_user_projection_update_requeues_the_same_binding() -> None:
+    user = core_user()
+    updated = user.model_copy(deep=True)
+    assert updated.metadata
+    updated.metadata.resource_version = "6"
+    updated.status = UserStatus(roles=[ResolvedRef(name="superadmin", uid=str(UUID(int=4)))])
+    assert (
+        binding_keys(user, namespace=NAMESPACE)
+        == binding_keys(updated, namespace=NAMESPACE)
+        == [ResourceKey(NAME, NAMESPACE)]
+    )
 
 
 def test_offline_manifests_preserve_core_ownership_and_namespace_scoping() -> None:

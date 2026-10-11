@@ -19,7 +19,8 @@ identifier. It does not need the raw idempotency key after a restart.
 Completion releases active capacity but keeps the entry for retries.
 A failed Secret write leaves the previous state in place.
 
-This adapter does not issue credentials. Grant Secret records, cleanup after
-the retry window, and the public API still need implementation. The operator
-has no Secret permissions yet. Do not use this adapter for production issuance
-until those parts and the Core policy contract are ready.
+This adapter does not issue credentials. The separate
+[grant record adapter](m2-grants.md) stores individual grant Secrets. Cleanup
+after the retry window and the public API still need implementation. The
+operator has no Secret permissions yet. Do not use these adapters for
+production issuance until those parts and Core's User projection are ready.

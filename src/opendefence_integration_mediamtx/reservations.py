@@ -59,12 +59,12 @@ class _Ledger(BaseModel):
         return self
 
 
-def _namespace(client: AsyncAPIClient[Secret], subject_id: UUID) -> str:
+def _namespace(client: AsyncAPIClient[Secret], subject_id: UUID | None = None) -> str:
     if (
         client.kind is not Secret
         or not client.namespaced
         or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", client.default_namespace)
-        or not isinstance(subject_id, UUID)
+        or (subject_id is not None and not isinstance(subject_id, UUID))
     ):
         raise ValueError("Invalid reservation scope")
     return client.default_namespace
