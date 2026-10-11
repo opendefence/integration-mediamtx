@@ -1,0 +1,195 @@
+version: "3"
+
+includes:
+  registries:
+    taskfile: https://raw.githubusercontent.com/opendefence/base/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles/registries.yaml
+    checksum: 7cfd8bb65f12fa010af65ae676581526b34d7a9dbbdad6901b35164e64c79d71 # pragma: allowlist secret - public SHA-256
+  cluster:
+    taskfile: https://raw.githubusercontent.com/opendefence/base/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles/cluster.yaml
+    checksum: f7de63fa2552656598c042959da7d5af8faa273d19705a269e83694c70a867e1 # pragma: allowlist secret - public SHA-256
+  base-package:
+    taskfile: https://raw.githubusercontent.com/opendefence/base/b04ff076bc4d3ec6a2ce01074a66f10d0f09b7a6/taskfiles/base.yaml
+    checksum: fd3866d05fa6bb89eb9ffbed4c71fbca47f049750a993da5d012f19e0180c567 # pragma: allowlist secret - public SHA-256
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  sync:
+    desc: Install the locked Python environment
+    cmds:
+      - uv sync --locked
+
+  check:
+    desc: Check the lockfile, mediamtx-operator overlay, lint, formatting, types and tests
+    cmds:
+      - uv lock --check
+      - uv run --locked scripts/render_package.py --check
+      - uv run --locked ruff check .
+      - uv run --locked ruff format --check .
+      - uv run --locked pyrefly check
+      - uv run --locked pytest
+
+  test:
+    desc: Run the unit tests
+    cmds:
+      - uv run --locked pytest
+
+  build:
+    desc: Build the source distribution and wheel
+    cmds:
+      - uv build --no-sources
+
+  package:render:
+    desc: Regenerate the Zarf mediamtx-operator overlay from Cloudcoil
+    cmds:
+      - uv run --locked scripts/render_package.py
+
+  package:check:
+    desc: Validate the mediamtx-operator and MediaMTX package in both overlays
+    preconditions:
+      - sh: command -v zarf >/dev/null
+        msg: Install Zarf 0.87.0 before validating the package
+    cmds:
+      - uv run --locked scripts/render_package.py --check
+      - zarf dev lint .
+      - zarf dev inspect manifests . --log-level warn --no-color > /dev/null
+      - zarf dev inspect manifests . --values values/local-dev.yaml --log-level warn --no-color > /dev/null
+
+  package:inspect:
+    desc: Render the Zarf overlay with VALUES_FILE (default local-dev)
+    preconditions:
+      - sh: command -v zarf >/dev/null
+        msg: Install Zarf 0.87.0 before inspecting the package
+    cmds:
+      - zarf dev inspect manifests . --values {{.VALUES_FILE | default "values/local-dev.yaml" | shellQuote}}
+
+  package:image:
+    desc: Build the mediamtx-operator image and its local OCI archive
+    vars:
+      IMAGE:
+        sh: zarf tools yq '.components[] | select(.name == "operator") | .imageArchives[0].images[0]' zarf.yaml
+      ARCH: '{{.ARCH | default "amd64"}}'
+      CONTAINER_RUNTIME: '{{.CONTAINER_RUNTIME | default "docker"}}'
+    preconditions:
+      - sh: command -v {{.CONTAINER_RUNTIME | shellQuote}} >/dev/null
+        msg: Install Docker or Podman and set CONTAINER_RUNTIME if needed
+    cmds:
+      - mkdir -p .local
+      - '{{.CONTAINER_RUNTIME | shellQuote}} build --platform {{printf "linux/%s" .ARCH | shellQuote}} --target production -t {{.IMAGE | shellQuote}} .'
+      - '{{if eq .CONTAINER_RUNTIME "podman"}}podman save --format oci-archive{{else}}docker save{{end}} -o .local/operator-image.tar {{.IMAGE | shellQuote}}'
+
+  package:build:
+    desc: Build the mediamtx-operator and MediaMTX offline Zarf package archive
+    vars:
+      ARCH: '{{.ARCH | default "amd64"}}'
+      BUILD_DIR: '{{.BUILD_DIR | default "dist"}}'
+    preconditions:
+      - sh: command -v zarf >/dev/null
+        msg: Install Zarf 0.87.0 before building the package
+    cmds:
+      - task: package:check
+      - task: package:image
+      - zarf package create . --architecture {{.ARCH | shellQuote}} --confirm --output {{.BUILD_DIR | shellQuote}}
+
+  package:deploy:
+    desc: Deploy both workloads into a Zarf-initialized cluster
+    requires:
+      vars: [PACKAGE_FILE]
+    vars:
+      VALUES_FILE: '{{.VALUES_FILE | default "values/values.yaml"}}'
+    preconditions:
+      - sh: command -v zarf >/dev/null
+        msg: Install Zarf 0.87.0 before deploying the package
+      - sh: test -f {{.PACKAGE_FILE | shellQuote}}
+        msg: Set PACKAGE_FILE to a built Zarf package archive
+      - sh: test -f {{.VALUES_FILE | shellQuote}}
+        msg: Set VALUES_FILE to an existing values file
+    cmds:
+      - zarf package deploy {{.PACKAGE_FILE | shellQuote}} --confirm --values {{.VALUES_FILE | shellQuote}}
+
+  package:deploy:local:
+    desc: Load the mediamtx-operator image and deploy to a connected Kind cluster
+    requires:
+      vars: [PACKAGE_FILE]
+    vars:
+      CLUSTER_NAME: '{{.CLUSTER_NAME | default "opendefence-dev"}}'
+      KUBE_CONTEXT: '{{.KUBE_CONTEXT | default (printf "kind-%s" .CLUSTER_NAME)}}'
+      CONTAINER_RUNTIME: '{{.CONTAINER_RUNTIME | default "podman"}}'
+      VALUES_FILE: '{{.VALUES_FILE | default "values/local-dev.yaml"}}'
+    env:
+      KIND_EXPERIMENTAL_PROVIDER: '{{.CONTAINER_RUNTIME}}'
+    preconditions:
+      - sh: command -v kind >/dev/null
+        msg: Install Kind before deploying to the local cluster
+      - sh: test "$(kubectl config current-context)" = {{.KUBE_CONTEXT | shellQuote}}
+        msg: Switch kubectl to the selected KUBE_CONTEXT before deploying
+      - sh: test -f .local/operator-image.tar
+        msg: Build the mediamtx-operator image archive with task package:build
+      - sh: test -f {{.PACKAGE_FILE | shellQuote}}
+        msg: Set PACKAGE_FILE to a built Zarf package archive
+      - sh: test -f {{.VALUES_FILE | shellQuote}}
+        msg: Set VALUES_FILE to an existing values file
+    cmds:
+      - kind load image-archive .local/operator-image.tar --name {{.CLUSTER_NAME | shellQuote}}
+      - zarf package deploy {{.PACKAGE_FILE | shellQuote}} --connected --confirm --values {{.VALUES_FILE | shellQuote}}
+
+  operator:run:
+    desc: Run mediamtx-operator against the selected Kubernetes context
+    cmds:
+      - uv run --locked mediamtx-operator run
+
+  auth:run:
+    desc: Run the private MediaMTX HTTPS callback against the selected Kubernetes context
+    requires:
+      vars: [TLS_CERT_FILE, TLS_KEY_FILE]
+    cmds:
+      - uv run --locked mediamtx-auth --tls-cert {{.TLS_CERT_FILE | shellQuote}} --tls-key {{.TLS_KEY_FILE | shellQuote}}
+
+  base:up:
+    desc: Create the base development cluster and install a base package
+    preconditions:
+      - sh: test -n {{.BASE_VERSION | default "" | shellQuote}} || test -n {{.BASE_PACKAGE | default "" | shellQuote}}
+        msg: Set BASE_VERSION or BASE_PACKAGE before creating the base cluster
+    cmds:
+      - task: registries:up
+      - task: cluster:create
+      - task: registries:connect
+      - task: cluster:configure-mirrors
+      - task: cluster:document-local-registry
+      - task: base-package:install
+        vars:
+          BASE_ISSUER: '{{.BASE_ISSUER | default "ca"}}'
+
+  base:status:
+    desc: Show the base development cluster status
+    cmds:
+      - task: cluster:status
+      - task: registries:status
+      - task: base-package:status
+
+  base:down:
+    desc: Delete the base development cluster and keep its registries
+    cmds:
+      - task: registries:disconnect
+      - task: cluster:down
+
+  kind:up:
+    desc: Create the isolated cluster for protocol and binding probes
+    cmds:
+      - bash scripts/kind.sh up
+
+  kind:load:
+    desc: Load an image archive into the isolated probe cluster
+    requires:
+      vars: [ARCHIVE]
+    cmds:
+      - bash scripts/kind.sh load {{.ARCHIVE | shellQuote}}
+
+  kind:down:
+    desc: Delete only the isolated cluster owned by this checkout
+    cmds:
+      - bash scripts/kind.sh down

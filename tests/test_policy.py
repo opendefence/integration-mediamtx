@@ -7,17 +7,22 @@ from uuid import UUID
 
 import pytest
 
-from odintegration_mediamtx.auth import AuthRequest
-from odintegration_mediamtx.paths import StreamPath
-from odintegration_mediamtx.policy import EffectivePolicy, MediaGrant, authorize_media
+from opendefence_integration_mediamtx.auth import AuthRequest
+from opendefence_integration_mediamtx.paths import StreamPath
+from opendefence_integration_mediamtx.policy import (
+    EffectivePolicy,
+    MediaGrant,
+    authorize_media,
+    grant_remains_authorized,
+)
 
 NOW = datetime(2026, 10, 10, 12, tzinfo=UTC)
 OWNER = UUID(int=1)
 BINDING = UUID(int=10)
 OTHER_OWNER = UUID(int=2)
-STREAM = StreamPath(tool="ipcam", owner_id=OWNER)
-OTHER_STREAM = StreamPath(tool="ipcam", owner_id=OTHER_OWNER)
-PASSWORD = "fixture_password_not_for_release_1234"
+STREAM = StreamPath(tool="ipcam", owner_callsign="alpha")
+OTHER_STREAM = StreamPath(tool="ipcam", owner_callsign="alpha2")
+PASSWORD = "fixture_password_not_for_release_1234"  # nosec B105 # pragma: allowlist secret - Test-only credential
 GRANT = MediaGrant(
     id="g_" + "A" * 22,
     subject_id=OWNER,
@@ -32,6 +37,7 @@ GRANT = MediaGrant(
 POLICY = EffectivePolicy(
     subject_id=OWNER,
     binding_uid=BINDING,
+    callsign="alpha",
     approved=True,
     assigned=True,
     revision="policy-1",
@@ -66,8 +72,8 @@ def allowed(  # noqa: PLR0913 - Tests vary request, grant, policy, time and depl
 
 def test_scoped_read_admission() -> None:
     assert allowed()
-    assert allowed(PAYLOAD | {"token": "", "futureField": {"ignored": True}})
-    assert allowed(PAYLOAD | {"id": str(UUID(int=3)), "query": "password=do-not-retain"})
+    assert allowed(PAYLOAD | {"token": "", "futureField": {"ignored": True}})  # nosec B105 # Optional token is empty.
+    assert allowed(PAYLOAD | {"id": str(UUID(int=3)), "query": "password=do-not-retain"})  # nosec B105 # Test-only query.
     assert allowed(policy=replace(POLICY, read_all=False, read_paths=frozenset({STREAM})))
     assert allowed(policy=replace(POLICY, approval_deadline=None))
 
@@ -90,6 +96,17 @@ def test_publish_requires_both_grant_scope_and_own_stream_permission() -> None:
     assert not allowed(request, grant, replace(POLICY, publish_own=False))
     assert not allowed(request | {"path": str(OTHER_STREAM)}, grant)
     assert not allowed(request | {"path": str(OTHER_STREAM)}, replace(grant, stream=OTHER_STREAM))
+    assert not allowed(request, grant, replace(POLICY, callsign="other"))
+
+
+def test_superadmin_can_use_any_media_path_with_a_scoped_grant() -> None:
+    admin = replace(POLICY, assigned=False, superadmin=True, read_all=False, publish_own=False)
+    assert allowed(policy=admin)
+    grant = replace(GRANT, action="publish", protocols=frozenset({"rtsps"}), stream=OTHER_STREAM)
+    request = PAYLOAD | {"action": "publish", "protocol": "rtsp", "path": str(OTHER_STREAM)}
+    assert allowed(request, grant, admin)
+    assert not allowed(request | {"path": str(STREAM)}, grant, admin)
+    assert not allowed(request, grant, replace(admin, approved=False))
 
 
 @pytest.mark.parametrize(
@@ -111,14 +128,15 @@ def test_protocol_mapping_requires_explicit_deployment_enablement(upstream: str,
         {},
         PAYLOAD | {"user": ""},
         PAYLOAD | {"user": "g_" + "B" * 22},
-        PAYLOAD | {"password": "", "token": ""},
-        PAYLOAD | {"password": "", "token": PASSWORD},
-        PAYLOAD | {"password": "wrong", "token": "wrong"},
-        PAYLOAD | {"token": "conflicting-token"},
-        PAYLOAD | {"password": "\ud800", "token": ""},
-        PAYLOAD | {"password": "é", "token": "é"},
-        PAYLOAD | {"password": None},
-        PAYLOAD | {"token": None},
+        PAYLOAD | {"password": "", "token": ""},  # nosec B105 # Empty credentials must fail.
+        PAYLOAD | {"password": "", "token": PASSWORD},  # nosec B105 # Empty password must fail.
+        PAYLOAD | {"password": "wrong", "token": "wrong"},  # nosec B105 # pragma: allowlist secret - Invalid credential
+        PAYLOAD | {"token": "conflicting-token"},  # nosec B105 # Deliberately conflicting test token.
+        # Bandit cannot report a literal lone surrogate; construct the same invalid value.
+        PAYLOAD | {"password": chr(0xD800), "token": ""},  # nosec B105 # Empty token in malformed request.
+        PAYLOAD | {"password": "é", "token": "é"},  # nosec B105 # Deliberately invalid test credential.
+        PAYLOAD | {"password": None},  # nosec B105 # Null credentials must fail.
+        PAYLOAD | {"token": None},  # nosec B105 # Null credentials must fail.
         PAYLOAD | {"action": None},
         PAYLOAD | {"path": []},
         PAYLOAD | {"protocol": "rtsps"},
@@ -159,6 +177,15 @@ def test_group_policy_change_does_not_need_a_user_identity_change() -> None:
     assert not allowed(policy=changed)
 
 
+def test_user_projection_change_denies_existing_grant() -> None:
+    assert grant_remains_authorized(GRANT, POLICY, now=NOW)
+    assert not grant_remains_authorized(GRANT, replace(POLICY, assigned=False), now=NOW)
+    assert not grant_remains_authorized(GRANT, replace(POLICY, read_all=False), now=NOW)
+    assert not grant_remains_authorized(GRANT, replace(POLICY, binding_uid=UUID(int=11)), now=NOW)
+    assert not grant_remains_authorized(GRANT, None, now=NOW)
+    assert not grant_remains_authorized(replace(GRANT, revoked_at=NOW), POLICY, now=NOW)
+
+
 def test_each_time_boundary_is_exclusive() -> None:
     assert allowed(now=POLICY.valid_until - timedelta(microseconds=1))
     assert not allowed(now=POLICY.valid_until)
@@ -196,6 +223,8 @@ def test_credentials_and_unused_callback_fields_are_not_in_model_reprs() -> None
         {"approval_deadline": NOW.replace(tzinfo=None)},
         {"evaluated_at": NOW.replace(tzinfo=None)},
         {"approved": "false"},
+        {"superadmin": "true"},
+        {"callsign": "ALPHA"},
         {"read_paths": frozenset({"live/ipcam/ALPHA"})},
     ],
 )
@@ -212,7 +241,7 @@ def test_invalid_core_projection_cannot_be_constructed(change: dict[str, Any]) -
         {"action": "publish"},
         {"protocols": frozenset()},
         {"protocols": frozenset({"moq"})},
-        {"password": "short"},
+        {"password": "short"},  # nosec B105 # pragma: allowlist secret - Invalid credential
         {"password": "é" * 32},
         {"expires_at": NOW},
         {"expires_at": NOW + timedelta(hours=24, microseconds=1)},

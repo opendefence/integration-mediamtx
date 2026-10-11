@@ -1,0 +1,16 @@
+apiVersion: platform.opendefence.fi/v1alpha1
+kind: Integration
+metadata:
+  name: {{ .Values.namespace }}
+spec:
+  displayName: MediaMTX
+  version: {{ .Pkg.Metadata.Version | quote }}
+  productInfo:
+    descriptions:
+      - language: en
+        title: MediaMTX
+        description: Media streaming with callsign and password authentication.
+  extraRoles: []
+  networkPolicy:
+    ingress: Public
+    egress: Internet

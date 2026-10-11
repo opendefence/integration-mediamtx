@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
 jobs:
   python:
     runs-on: ubuntu-latest
@@ -18,13 +22,200 @@ jobs:
         with:
           python-version: "3.14"
           uv-version: "0.12.13"
-      - run: make check
+      - name: Install Task
+        uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: "3.54.0"
+      - run: task --list
+      - run: task check
       - run: uv run --locked prek run --all-files
-      - run: make build
+        # Branch protection guards local commits, not validation after a push to main.
+        env:
+          SKIP: no-commit-to-branch
+      - run: task build
+      - name: Install Zarf
+        run: |
+          curl -fsSL https://github.com/zarf-dev/zarf/releases/download/v0.87.0/zarf_v0.87.0_Linux_amd64 -o /tmp/zarf
+          echo "50c344ee06bcd968e4464d50beb3c508ed784066297598a019db8a4d8eeff0cd  /tmp/zarf" | sha256sum --check - # pragma: allowlist secret - public SHA-256
+          chmod +x /tmp/zarf
+          echo /tmp >> "$GITHUB_PATH"
+      - run: task package:check
 
-  snyk:
-    # Disabled until the new organization is configured. This is not a passed scan.
-    if: ${{ false }}
-    runs-on: ubuntu-latest
+  version:
+    needs: python
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - run: echo "Snyk is disabled."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Read package build version
+        id: version
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open(".bumpversion.toml", "rb"))["tool"]["bumpversion"]["current_version"])')
+          echo "version=${version//+/-}-$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+  image:
+    needs: version
+    if: >-
+      github.repository == 'opendefence/integration-mediamtx' &&
+      github.actor != 'dependabot[bot]' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: arc-runner-set
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      reference: ${{ steps.digest.outputs.reference }}
+      tags: ${{ steps.publish.outputs.tags }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pvarki/config-ci-library/.github/actions/publish-image@1786399bf62c2b691f1e8fb9dcfc7a0be72a2846
+        id: publish
+        with:
+          product: integration-mediamtx
+          component: operator
+          target: production
+          platforms: linux/amd64,linux/arm64
+          extra-tag: ${{ needs.version.outputs.version }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve the published image digest
+        id: digest
+        env:
+          IMAGE_NAME: ${{ steps.publish.outputs.image-name }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/$IMAGE_NAME"
+          digest=$(docker buildx imagetools inspect "$image:$PACKAGE_VERSION" --format '{{.Manifest.Digest}}')
+          if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+            echo "Published image has no valid SHA-256 digest" >&2
+            exit 1
+          fi
+          echo "reference=$image@$digest" >> "$GITHUB_OUTPUT"
+
+  zarf-build:
+    needs: [version, image]
+    if: >-
+      !cancelled() && needs.version.result == 'success' &&
+      (needs.image.result == 'success' || needs.image.result == 'skipped')
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            zarf-sha256: 50c344ee06bcd968e4464d50beb3c508ed784066297598a019db8a4d8eeff0cd # pragma: allowlist secret - public SHA-256
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            zarf-sha256: 71bb8f52ed1d44350a0d071508add1308fd2fe9d35b178cc52436ac986aa680e # pragma: allowlist secret - public SHA-256
+    runs-on: ${{ matrix.runner }}
+    env:
+      PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+      PUBLISHED_IMAGE: ${{ needs.image.outputs.reference }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pvarki/config-ci-library/.github/actions/setup-python@1786399bf62c2b691f1e8fb9dcfc7a0be72a2846
+        with:
+          python-version: "3.14"
+          uv-version: "0.12.13"
+      - uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: "3.54.0"
+      - name: Install Zarf
+        env:
+          ARCH: ${{ matrix.arch }}
+          ZARF_SHA256: ${{ matrix.zarf-sha256 }}
+        run: |
+          curl -fsSL "https://github.com/zarf-dev/zarf/releases/download/v0.87.0/zarf_v0.87.0_Linux_${ARCH}" -o "$RUNNER_TEMP/zarf"
+          echo "$ZARF_SHA256  $RUNNER_TEMP/zarf" | sha256sum --check -
+          chmod +x "$RUNNER_TEMP/zarf"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Stamp package and bundled image
+        run: |
+          export OPERATOR_IMAGE="${PUBLISHED_IMAGE:-zarf.internal/opendefence/integration-mediamtx:$PACKAGE_VERSION}"
+          zarf tools yq -i '
+            .metadata.version = strenv(PACKAGE_VERSION) |
+            (.constants[] | select(.name == "OPERATOR_IMAGE") | .value) = strenv(OPERATOR_IMAGE) |
+            (.components[] | select(.name == "operator") | .imageArchives[0].images[0]) =
+              strenv(OPERATOR_IMAGE)
+          ' zarf.yaml
+          if [[ -n "$PUBLISHED_IMAGE" ]]; then
+            zarf tools yq -i '
+              (.components[] | select(.name == "operator")) |=
+                (.images = .imageArchives[0].images | del(.imageArchives))
+            ' zarf.yaml
+          fi
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: needs.image.result == 'success'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build Zarf package
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          if [[ -n "$PUBLISHED_IMAGE" ]]; then
+            task package:check
+            zarf package create . --architecture "$ARCH" --confirm --output dist
+          else
+            task package:build ARCH="$ARCH" BUILD_DIR=dist
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: zarf-package-${{ matrix.arch }}
+          path: dist/zarf-package-integration-mediamtx-${{ matrix.arch }}-*.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  zarf-publish:
+    needs: [image, zarf-build]
+    if: needs.image.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: zarf-package-*
+          path: packages
+      - name: Install Zarf
+        run: |
+          curl -fsSL https://github.com/zarf-dev/zarf/releases/download/v0.87.0/zarf_v0.87.0_Linux_amd64 -o "$RUNNER_TEMP/zarf"
+          echo "50c344ee06bcd968e4464d50beb3c508ed784066297598a019db8a4d8eeff0cd  $RUNNER_TEMP/zarf" | sha256sum --check - # pragma: allowlist secret - public SHA-256
+          chmod +x "$RUNNER_TEMP/zarf"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sign and publish both architectures under each tag
+        env:
+          IMAGE_TAGS: ${{ needs.image.outputs.tags }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(packages/zarf-package-*/zarf-package-integration-mediamtx-*.tar.zst)
+          test "${#packages[@]}" -eq 2
+          test -n "$IMAGE_TAGS"
+          for package in "${packages[@]}"; do
+            # Match base: store a signature from the Actions OIDC identity in the archive.
+            zarf package sign "$package" --keyless --confirm
+          done
+          while IFS= read -r image_tag; do
+            tag="${image_tag##*:}"
+            # Zarf merges architectures into an OCI index; publish serially.
+            for package in "${packages[@]}"; do
+              zarf package publish "$package" oci://ghcr.io/opendefence/packages --tag "$tag" --confirm
+            done
+            printf -- '- `ghcr.io/opendefence/packages/integration-mediamtx:%s`\n' "$tag" >> "$GITHUB_STEP_SUMMARY"
+          done <<< "$IMAGE_TAGS"

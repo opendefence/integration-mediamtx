@@ -1,4 +1,4 @@
-"""Canonical Core UUIDs and media paths; callsigns never select an owner."""
+"""Canonical Core UUIDs and callsign-based media paths."""
 
 import base64
 import binascii
@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 TOOLS = frozenset({"icu", "gopro", "uas", "ipcam"})
+CALLSIGN_PATTERN = r"[a-z0-9]{3,30}"
 MAX_PATH_LENGTH = 192
 MAX_STREAM_ID_LENGTH = 259
 
@@ -48,14 +49,18 @@ def parse_user_id(value: str) -> UUID:
 @dataclass(frozen=True, slots=True)
 class StreamPath:
     tool: str
-    owner_id: UUID
+    owner_callsign: str
 
     def __post_init__(self) -> None:
-        if self.tool not in TOOLS or not isinstance(self.owner_id, UUID):
+        if (
+            self.tool not in TOOLS
+            or not isinstance(self.owner_callsign, str)
+            or not re.fullmatch(CALLSIGN_PATTERN, self.owner_callsign)
+        ):
             raise ValueError("Invalid stream owner or tool")
 
     def __str__(self) -> str:
-        return f"live/{self.tool}/{encode_user_id(self.owner_id)}"
+        return f"live/{self.tool}/{self.owner_callsign}"
 
     @property
     def stream_id(self) -> str:
@@ -68,7 +73,7 @@ def parse_path(value: str) -> StreamPath:
     parts = value.split("/")
     if len(parts) != 3 or parts[0] != "live":
         raise ValueError("Invalid media path")
-    path = StreamPath(tool=parts[1], owner_id=parse_user_id(parts[2]))
+    path = StreamPath(tool=parts[1], owner_callsign=parts[2])
     if str(path) != value:
         raise ValueError("Noncanonical media path")
     return path

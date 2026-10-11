@@ -1,6 +1,7 @@
 .idea/
 .venv/
 .local/
+.task/
 __pycache__/
 *.py[cod]
 .pytest_cache/

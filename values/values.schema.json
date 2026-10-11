@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "domain": {
+      "maxLength": 253,
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$",
+      "type": "string"
+    },
+    "namespace": {
+      "maxLength": 63,
+      "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
+      "type": "string"
+    },
+    "takServerName": {
+      "maxLength": 253,
+      "pattern": "^[a-z0-9.-]*$",
+      "type": "string"
+    },
+    "takUrl": {
+      "maxLength": 300,
+      "pattern": "^(https://[a-z0-9.-]+(:[0-9]{1,5})?/?|)$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "namespace",
+    "domain",
+    "takUrl",
+    "takServerName"
+  ],
+  "type": "object"
+}

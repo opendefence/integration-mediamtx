@@ -1,0 +1,65 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mediamtx-operator-ingress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mediamtx-operator
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mediamtx
+      ports:
+        - protocol: TCP
+          port: 9443 # Private authorization callback
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mediamtx-ingress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mediamtx
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - protocol: TCP
+          port: 8888 # HLS
+        - protocol: TCP
+          port: 8889 # WebRTC signaling (WHIP/WHEP)
+        - protocol: TCP
+          port: 8322 # RTSPS, TCP transport only
+        - protocol: TCP
+          port: 1936 # RTMPS
+        - protocol: UDP
+          port: 8189 # WebRTC ICE media
+        - protocol: UDP
+          port: 8890 # SRT
+        - protocol: TCP
+          port: 8892 # MoQ HTTP/2
+        - protocol: UDP
+          port: 8892 # MoQ HTTP/3
+        - protocol: UDP
+          port: 8893 # MoQ native QUIC
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mediamtx-operator
+      ports:
+        - protocol: TCP
+          port: 9997 # Private MediaMTX control API

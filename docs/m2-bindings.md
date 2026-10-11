@@ -1,7 +1,8 @@
 # M2 Core identity and bindings
 
 Date: 2026-10-10. This slice consumes the user's supplied CRD and authentication
-boundary. It implements adapters, not a running public API or operator process.
+boundary. This checkpoint implemented adapters; the subsequent
+[`mediamtx-operator`](m2-operator.md) runs their observations. The public API remains pending.
 
 Core owns user mTLS authentication and any ForwardAuth configuration. The
 integration consumes one injected header through `user_id_from_headers` in
@@ -18,40 +19,63 @@ namespaced UserBinding per User and write its `Synced` condition. Core watches
 these observations. The spec only contains `userRef.name`; status only contains
 conditions and observed generation. Binding existence and `Synced=True` do not
 prove assignment, policy freshness or media permission.
+The persisted `app.kubernetes.io/managed-by` value remains
+`odintegration-mediamtx` across the Python package rename, so existing bindings
+retain their ownership identity.
 
-`bindings.py` provides typed models and two resource operations:
+`bindings.py` uses `lib-opendefence-core` 0.2.1+261010 for the `User`,
+`UserBinding`, spec, status and condition models. The package is resolved from
+the explicit [pypilocal index](https://nexus.dev.pvarki.fi/repository/pypilocal/)
+in `pyproject.toml`; other dependencies continue to use their usual indexes.
+The adapter provides resource operations:
 
 - `ensure_binding` takes a fetched Core User and a namespace-scoped Cloudcoil
   client. It atomically creates `mediamtx-<User UUID hex>`. Concurrent losers
   fetch the stored binding and validate its identity and ownership. The
   annotation `mediamtx.opendefence.fi/user-uuid` pins the reference to the
-  immutable User UID. A recreated User gets a different binding even if its
-  name is reused. Mismatched or deleting bindings are not adopted or retargeted.
+  immutable User UID. A recreated, unapproved test User gets a different
+  binding even if its name is reused. Mismatched or deleting bindings are not
+  adopted or retargeted. Approved Users are revoked and kept, not recreated.
 - `set_binding_synced` takes the provisioning result from its caller. It writes
   only the status subresource with UID and resource-version tests. It preserves
   other conditions and changes the transition timestamp only when the condition
   status changes. An unchanged observation makes no request. Conflicts propagate
   so the caller must read and reconcile again.
+- `mediamtx-operator` adds `set_binding_pending`, which only clears readiness on owned
+  bindings. It can invalidate an orphaned binding without requiring a current
+  User. Positive readiness still requires a matching current User and a caller's
+  completed provisioning result; the running `mediamtx-operator` does not report it.
 
-The User view keeps spec and status opaque. It reads identity from metadata and
+The shared User model validates Core's typed spec and status, including the
+lowercase callsign pattern. The adapter reads identity from metadata and
 does not resolve roles or groups. Callers must fetch the current User; a stored
 snapshot is not policy freshness evidence. No grants or credentials are created
 by these binding operations. They do not set owner references: cleanup must deny
 grants and drain sessions before deletion, rather than relying on automatic
-garbage collection. That lifecycle remains operator work.
+garbage collection. That lifecycle remains `mediamtx-operator` work.
 The caller owns the resource client's transport lifetime. Cloudcoil's Config
 context does not close HTTP transports; the probe explicitly closes both clients.
 
-Cloudcoil is pinned directly in package metadata and `uv.lock` to
+The original live probe used Cloudcoil at
 [`e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8`](https://github.com/cloudcoil/cloudcoil/tree/e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8).
 Reviewed the resource models, async create/get/patch clients, JSON Patch guards,
 HTTP errors, kubeconfig TLS setup and transport lifecycle used by this slice.
-The upstream tag is `0.8.0`, but the package reports `0.5.0.dev0`; the commit is
-the dependency identity. Direct-reference metadata keeps the pin in built wheels.
+The upstream tag is `0.8.0`, but that Git package reports `0.5.0.dev0`.
+The dependency now uses the registry package with Kubernetes and operator
+extras; `uv.lock` resolves version `0.8.0`. The unit suite passes against that
+release. The recorded live result retains its original dependency identity;
+the live probe has not been repeated with the registry package. Future probe
+results record the installed version without claiming a Git revision.
 The optional upstream pytest cluster plugin is disabled because this repository
 uses its own owned Kind workflow. Four narrow Pyrefly suppressions cover
 Cloudcoil's documented concrete wire literals over mutable base fields; runtime
 Pydantic validation still enforces those literals.
+
+The preceding four suppressions describe the original local models. The shared
+models remove those local declarations and suppressions. The adapter still checks
+binding ownership, canonical UIDs, unique conditions and aware transition times
+before writes. Core owns the shared CRDs; Cloudcoil's automatic CRD entry for the
+shared UserBinding model is omitted from `mediamtx-operator` generated manifests.
 
 ## Verification
 
@@ -68,9 +92,9 @@ install the source file's RBAC or service accounts. Run lifecycle commands
 serially:
 
 ```sh
-PATH="$PWD/.local/bin:$PATH" make kind-up
-uv run --locked spikes/m2/run_bindings.py --crds ../opendefence_core_crds.yaml
-PATH="$PWD/.local/bin:$PATH" make kind-down
+PATH="$PWD/.local/bin:$PATH" task kind:up
+uv run --locked spikes/m2/run_bindings.py --crds ../core/manifests/crds/crds.yaml
+PATH="$PWD/.local/bin:$PATH" task kind:down
 ```
 
 The [live result](m2-bindings-results.json) records eight concurrent creators
@@ -81,8 +105,17 @@ Fixture cleanup and owned cluster removal passed; sibling clusters remained.
 The CRD input hash is
 `105bede6c1dd9f77c9effb6d8525d5882822a6ca67c75f14f2f59f64f106a747`.
 
-No effective-policy endpoint or revision/expiry projection is defined in these
+The shared-model probe also passed against Core's current CRD source (SHA-256
+`fb2d59fa58e562a1c20c46cc590458e15d249e1f94b777a14b91eecc15c5b79a`).
+It repeated the atomic creation, guarded status, pruning, User recreation and
+replacement checks with Cloudcoil 0.8.0 and `lib-opendefence-core` 0.2.1+261010.
+Its owned cluster, namespace, User and installed CRDs were removed; sibling
+clusters remained. The earlier result record remains historical evidence.
+
+No complete effective Role or bounded-freshness projection is defined in these
 CRDs or the inspected Core scaffold. Production media authorization still needs
-that contract. The existing pure policy function remains fail-closed on absent
-or stale policy. Ingress, production RBAC, grant persistence, the operator
-process and public API are not validated by this probe. TAK remains deferred.
+that Core data and this integration's Role mapping. The existing pure policy
+function remains fail-closed on absent or stale input. Ingress, production
+RBAC, grant persistence, and the public API are not validated by this adapter
+probe. The separate `mediamtx-operator` probe uses
+`--operator`. TAK remains deferred.

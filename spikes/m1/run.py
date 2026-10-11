@@ -10,24 +10,22 @@ import json
 import os
 import secrets
 import ssl
-import subprocess
+import subprocess  # nosec B404 # Harness runs developer tools with argument vectors.
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
-from uuid import UUID
-
-from odintegration_mediamtx.paths import StreamPath
+from opendefence_integration_mediamtx.paths import StreamPath
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 STATE = ROOT / ".local/m1"
-PACKAGE = ROOT / "src/odintegration_mediamtx"
+PACKAGE = ROOT / "src/opendefence_integration_mediamtx"
 PACKAGE_MODULES = ("__init__", "auth", "paths", "policy")
 NAMESPACE = "mediamtx-m1"
-MEDIA_PATH = str(StreamPath(tool="ipcam", owner_id=UUID("00000000-0000-4000-8000-000000000001")))
-OTHER_PATH = str(StreamPath(tool="ipcam", owner_id=UUID("00000000-0000-4000-8000-000000000002")))
+MEDIA_PATH = str(StreamPath(tool="ipcam", owner_callsign="alpha"))
+OTHER_PATH = str(StreamPath(tool="ipcam", owner_callsign="alpha2"))
 PREFIX = "/integrations/mediamtx/media/hls"
 PUBLISHER = "g_" + "P" * 22
 READER = "g_" + "R" * 22
@@ -36,7 +34,7 @@ LOCAL_IMAGES = {name: f"localhost/mediamtx-m1-{name}:{image[-12:]}" for name, im
 
 
 def run(*args: str, data: str | None = None) -> str:
-    return subprocess.run(args, input=data, text=True, capture_output=True, check=True).stdout
+    return subprocess.run(args, input=data, text=True, capture_output=True, check=True).stdout  # nosec B603
 
 
 def kubectl(*args: str, data: str | None = None) -> str:
@@ -89,7 +87,7 @@ def pod(name: str, image: str, command: list[str]) -> dict[str, Any]:
                 }
             ],
             "volumes": [
-                {"name": "fixtures", "secret": {"secretName": "fixtures"}},
+                {"name": "fixtures", "secret": {"secretName": "fixtures"}},  # pragma: allowlist secret
                 {
                     "name": "config",
                     "configMap": {
@@ -98,7 +96,7 @@ def pod(name: str, image: str, command: list[str]) -> dict[str, Any]:
                             {"key": name, "path": name} for name in ("callback.py", "mediamtx.yml", "traefik.yml")
                         ]
                         + [
-                            {"key": "package-" + module, "path": f"odintegration_mediamtx/{module}.py"}
+                            {"key": "package-" + module, "path": f"opendefence_integration_mediamtx/{module}.py"}
                             for module in PACKAGE_MODULES
                         ],
                     },
@@ -151,7 +149,7 @@ def basic(user: str, password: str) -> dict[str, str]:
 def forward(name: str, ports: list[str], log: Path) -> subprocess.Popen[bytes]:
     cluster = (ROOT / ".local/kind/owner").read_text().strip()
     with log.open("w") as output:
-        process = subprocess.Popen(
+        process = subprocess.Popen(  # nosec B603 B607 # Developer kubectl from PATH, shell-free arguments.
             [
                 "kubectl",
                 "--kubeconfig",
@@ -239,14 +237,14 @@ def check_protocol(
     assert request(18888, copied_query_url, context)[0] == 200
     assert request(18888, copied_cookie_url, context, {"Cookie": cookie})[0] == 200
 
-    kubectl("exec", "auth", "--", "touch", "/tmp/stale-policy")
+    kubectl("exec", "auth", "--", "touch", "/tmp/stale-policy")  # nosec B108 # Private fixture flag.
     assert request(18888, index, context, reader)[0] == 401
     assert api("paths/list")[0] == 200
-    kubectl("exec", "auth", "--", "rm", "/tmp/stale-policy")
+    kubectl("exec", "auth", "--", "rm", "/tmp/stale-policy")  # nosec B108 # Private fixture flag.
     report["staleProjectionDeniesMediaButNotControl"] = True
 
     # This fixture flag simulates a revoked/expired reader, not a Core resource.
-    kubectl("exec", "auth", "--", "touch", "/tmp/deny-read")
+    kubectl("exec", "auth", "--", "touch", "/tmp/deny-read")  # nosec B108 # Private fixture flag.
     assert request(18888, index, context, reader)[0] == 401
     status, _, playlist = request(18888, copied_query_url, context)
     assert status == 200
@@ -288,7 +286,7 @@ def check_protocol(
     assert request(28443, location, context, reader)[0] == 404
     report["stripPrefixRedirectEscapesPublicRoute"] = True
 
-    event_log = kubectl("exec", "auth", "--", "cat", "/tmp/events.jsonl")
+    event_log = kubectl("exec", "auth", "--", "cat", "/tmp/events.jsonl")  # nosec B108 # Private fixture log.
     for grant in credentials.values():
         assert grant["password"] not in event_log
     events = [json.loads(line) for line in event_log.splitlines()]
@@ -297,7 +295,7 @@ def check_protocol(
     assert any(e["action"] == "api" and e["idIsNull"] and e["status"] == 204 for e in events)
     report["callbackShapeVerified"] = True
 
-    kubectl("exec", "auth", "--", "rm", "/tmp/deny-read")
+    kubectl("exec", "auth", "--", "rm", "/tmp/deny-read")  # nosec B108 # Private fixture flag.
     status, _, body = request(18888, index, context, reader)
     assert status == 200
     child = next(line for line in body.decode().splitlines() if line and not line.startswith("#"))
@@ -337,7 +335,7 @@ def main() -> None:
     package_source = {module: (PACKAGE / (module + ".py")).read_text() for module in PACKAGE_MODULES}
     report: dict[str, Any] = {
         "images": IMAGES,
-        "policyImplementation": "odintegration_mediamtx.policy.authorize_media",
+        "policyImplementation": "opendefence_integration_mediamtx.policy.authorize_media",
         "packageSourceSha256": {
             module: hashlib.sha256(source.encode()).hexdigest() for module, source in package_source.items()
         },

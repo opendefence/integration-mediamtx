@@ -2,71 +2,23 @@
 
 import re
 from datetime import datetime
-from typing import Annotated, Literal
 from uuid import UUID
 
-from cloudcoil.apimachinery import ObjectMeta
+from cloudcoil.apimachinery import ObjectMeta, Time
 from cloudcoil.client import AsyncAPIClient
 from cloudcoil.errors import ResourceConflict
 from cloudcoil.patches import diff
-from cloudcoil.pydantic import BaseModel
-from cloudcoil.resources import Resource
-from pydantic import ConfigDict, Field
+from lib_opendefence_core.models.v1alpha1 import ObjectRef, User, UserBinding, UserBindingSpec, UserBindingStatus
+from lib_opendefence_core.models.v1alpha1.common import PlatformCondition
 
-from odintegration_mediamtx.paths import parse_user_id
+from opendefence_integration_mediamtx.paths import parse_user_id
 
 USER_UUID_ANNOTATION = "mediamtx.opendefence.fi/user-uuid"
+# Keep the persisted ownership label stable across Python package renames.
 MANAGED_BY = "odintegration-mediamtx"
 
 
-class CoreUser(Resource):
-    """Read-only User view; permission references remain opaque to this adapter."""
-
-    # Cloudcoil requires concrete wire literals over its mutable Any | None base fields.
-    api_version: Literal["platform.opendefence.fi/v1alpha1"] = Field(  # pyrefly: ignore[bad-override-mutable-attribute]
-        default="platform.opendefence.fi/v1alpha1", alias="apiVersion"
-    )
-    kind: Literal["User"] = "User"  # pyrefly: ignore[bad-override-mutable-attribute]
-    spec: dict[str, object]
-    status: dict[str, object] | None = None
-
-
-class ObjectRef(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    name: str = Field(min_length=1)
-
-
-class UserBindingSpec(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    user_ref: ObjectRef = Field(alias="userRef")
-
-
-class PlatformCondition(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    type: str
-    status: Literal["True", "False", "Unknown"]
-    reason: str
-    message: str
-    last_transition_time: datetime = Field(alias="lastTransitionTime")
-    observed_generation: Annotated[int | None, Field(strict=True, alias="observedGeneration")] = None
-
-
-class UserBindingStatus(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    conditions: list[PlatformCondition] = Field(default_factory=list)
-    observed_generation: Annotated[int | None, Field(strict=True, alias="observedGeneration")] = None
-
-
-class UserBinding(Resource):
-    api_version: Literal["platform.opendefence.fi/v1alpha1"] = Field(  # pyrefly: ignore[bad-override-mutable-attribute]
-        default="platform.opendefence.fi/v1alpha1", alias="apiVersion"
-    )
-    kind: Literal["UserBinding"] = "UserBinding"  # pyrefly: ignore[bad-override-mutable-attribute]
-    spec: UserBindingSpec
-    status: UserBindingStatus | None = None
-
-
-def _user_identity(user: CoreUser) -> tuple[str, UUID]:
+def _user_identity(user: User) -> tuple[str, UUID]:
     meta = user.metadata
     if not meta or not meta.name or not meta.uid or not meta.resource_version or meta.deletion_timestamp:
         raise ValueError("A current Core User is required")
@@ -87,9 +39,10 @@ def _namespace(client: AsyncAPIClient[UserBinding]) -> str:
     return namespace
 
 
-def _check_binding(binding: UserBinding, user: CoreUser, namespace: str) -> None:
-    name, subject_id = _user_identity(user)
+def _binding_identity(binding: UserBinding, namespace: str) -> UUID:
     meta = binding.metadata
+    subject = (meta.annotations or {}).get(USER_UUID_ANNOTATION, "") if meta else ""
+    subject_id = parse_user_id(subject)
     if (
         not meta
         or meta.name != f"mediamtx-{subject_id.hex}"
@@ -99,25 +52,33 @@ def _check_binding(binding: UserBinding, user: CoreUser, namespace: str) -> None
         or meta.generation is None
         or meta.generation < 1
         or meta.deletion_timestamp
-        or (meta.annotations or {}).get(USER_UUID_ANNOTATION) != str(subject_id)
+        or subject != str(subject_id)
         or (meta.labels or {}).get("app.kubernetes.io/managed-by") != MANAGED_BY
-        or binding.spec.user_ref.name != name
     ):
         raise ValueError("UserBinding identity or ownership mismatch")
     if str(parse_user_id(meta.uid)) != meta.uid:
         raise ValueError("Invalid UserBinding UID")
     conditions: list[PlatformCondition] = binding.status.conditions if binding.status else []
     if len({condition.type for condition in conditions}) != len(conditions) or any(
-        condition.last_transition_time.utcoffset() is None for condition in conditions
+        condition.last_transition_time.root.utcoffset() is None or condition.status not in {"True", "False", "Unknown"}
+        for condition in conditions
     ):
         raise ValueError("Invalid UserBinding conditions")
+    return subject_id
 
 
-async def ensure_binding(user: CoreUser, client: AsyncAPIClient[UserBinding]) -> UserBinding:
+def _check_binding(binding: UserBinding, user: User, namespace: str) -> None:
+    name, subject_id = _user_identity(user)
+    if _binding_identity(binding, namespace) != subject_id or binding.spec.user_ref.name != name:
+        raise ValueError("UserBinding identity or ownership mismatch")
+
+
+async def ensure_binding(user: User, client: AsyncAPIClient[UserBinding]) -> UserBinding:
     """Atomically create one observation; never retarget an existing binding."""
     name, subject_id = _user_identity(user)
     namespace = _namespace(client)
     desired = UserBinding(
+        kind="UserBinding",
         metadata=ObjectMeta(
             name=f"mediamtx-{subject_id.hex}",
             namespace=namespace,
@@ -136,7 +97,7 @@ async def ensure_binding(user: CoreUser, client: AsyncAPIClient[UserBinding]) ->
 
 async def set_binding_synced(
     binding: UserBinding,
-    user: CoreUser,
+    user: User,
     client: AsyncAPIClient[UserBinding],
     *,
     synced: bool,
@@ -144,12 +105,26 @@ async def set_binding_synced(
 ) -> UserBinding:
     """Report completed provisioning, with UID/version guards; conflicts propagate."""
     _check_binding(binding, user, _namespace(client))
+    return await _set_synced(binding, client, synced=synced, now=now)
+
+
+async def set_binding_pending(
+    binding: UserBinding, client: AsyncAPIClient[UserBinding], *, now: datetime
+) -> UserBinding:
+    """Clear readiness for owned bindings, including missing or replaced Users."""
+    _binding_identity(binding, _namespace(client))
+    return await _set_synced(binding, client, synced=False, now=now)
+
+
+async def _set_synced(
+    binding: UserBinding, client: AsyncAPIClient[UserBinding], *, synced: bool, now: datetime
+) -> UserBinding:
     if type(synced) is not bool or now.utcoffset() is None:
         raise ValueError("Invalid provisioning observation")
     conditions: list[PlatformCondition] = binding.status.conditions if binding.status else []
     previous = next((condition for condition in conditions if condition.type == "Synced"), None)
     state = "True" if synced else "False"
-    transition = previous.last_transition_time if previous and previous.status == state else now
+    transition = previous.last_transition_time if previous and previous.status == state else Time(root=now)
     condition = PlatformCondition(
         type="Synced",
         status=state,

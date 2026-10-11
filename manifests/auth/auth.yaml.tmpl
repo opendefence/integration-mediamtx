@@ -1,0 +1,83 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: mediamtx-auth-bootstrap
+  namespace: {{ .Values.namespace }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mediamtx-auth-ca
+  namespace: {{ .Values.namespace }}
+spec:
+  isCA: true
+  commonName: mediamtx-auth-ca
+  secretName: mediamtx-auth-ca # pragma: allowlist secret
+  duration: 87600h
+  renewBefore: 8760h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Never
+  issuerRef:
+    name: mediamtx-auth-bootstrap
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: mediamtx-auth-ca
+  namespace: {{ .Values.namespace }}
+spec:
+  ca:
+    secretName: mediamtx-auth-ca # pragma: allowlist secret
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mediamtx-auth-tls
+  namespace: {{ .Values.namespace }}
+spec:
+  secretName: mediamtx-auth-tls # pragma: allowlist secret
+  dnsNames:
+    - mediamtx-auth.{{ .Values.namespace }}.svc
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: mediamtx-auth-ca
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: mediamtx-control-tls
+  namespace: {{ .Values.namespace }}
+spec:
+  secretName: mediamtx-control-tls # pragma: allowlist secret
+  dnsNames:
+    - mediamtx.{{ .Values.namespace }}.svc
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: mediamtx-auth-ca
+    kind: Issuer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mediamtx-auth
+  namespace: {{ .Values.namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mediamtx-operator
+  ports:
+    - name: https
+      port: 9443
+      targetPort: auth

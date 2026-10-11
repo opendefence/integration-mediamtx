@@ -1,0 +1,55 @@
+kind: ZarfPackageConfig
+metadata:
+  name: integration-mediamtx
+  # CI sets this version and the bundled image reference for each build.
+  version: 0.1.0-261011
+  description: OpenDefence MediaMTX server, credentials, and TAK stream catalogue
+constants:
+  - name: OPERATOR_IMAGE
+    value: zarf.internal/opendefence/integration-mediamtx:0.1.0-261011
+values:
+  files:
+    - values/values.yaml
+  schema: values/values.schema.json
+components:
+  - name: integration
+    required: true
+    manifests:
+      - name: integration
+        template: true
+        files:
+          - manifests/integration/integration.yaml.tmpl
+  - name: auth-tls
+    required: true
+    manifests:
+      - name: auth-tls
+        template: true
+        files:
+          - manifests/auth/auth.yaml.tmpl
+  - name: operator
+    required: true
+    imageArchives:
+      - path: .local/operator-image.tar
+        images:
+          - zarf.internal/opendefence/integration-mediamtx:0.1.0-261011
+    manifests:
+      - name: operator
+        template: true
+        files:
+          - manifests/operator/operator.yaml.tmpl
+  - name: media
+    required: true
+    images:
+      - docker.io/bluenviron/mediamtx:1.21.2@sha256:c7540465f868a02652118bea5a0daab12a29ac0f6cb8485abd535939ecddf886
+    manifests:
+      - name: media
+        template: true
+        files:
+          - manifests/media/media.yaml.tmpl
+  - name: media-networking
+    required: true
+    manifests:
+      - name: media-networking
+        template: true
+        files:
+          - manifests/network/media-ingress.yaml.tmpl

@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import hashlib
 import json
-import subprocess
+import subprocess  # nosec B404 # Harness invokes local kubectl with an argument vector.
 import sys
 from contextlib import AsyncExitStack
 from datetime import UTC, datetime
@@ -16,11 +16,14 @@ import yaml
 from cloudcoil.client import Config
 from cloudcoil.errors import APIError
 
-from odintegration_mediamtx.bindings import CoreUser, UserBinding, ensure_binding, set_binding_synced
+from lib_opendefence_core.models.v1alpha1 import User, UserBinding
+
+from opendefence_integration_mediamtx.bindings import ensure_binding, set_binding_synced
+from opendefence_integration_mediamtx.operator import binding_keys, create_operator
 
 ROOT = Path(__file__).resolve().parents[2]
 NAMESPACE = "mediamtx-m2-bindings"
-USER_NAME = "mediamtx-m2-binding-probe"
+USER_NAME = "mediamtxm2bindingprobe"
 CRD_NAMES = {"users.platform.opendefence.fi", "userbindings.platform.opendefence.fi"}
 
 
@@ -29,7 +32,7 @@ def kubectl(*args: str, data: object = None) -> str:
     expected = "mediamtx-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]
     if cluster != expected:
         raise ValueError("Refusing a cluster not owned by this checkout")
-    return subprocess.run(
+    return subprocess.run(  # nosec B603 B607 # Developer kubectl from PATH, shell-free arguments.
         [
             "kubectl",
             "--kubeconfig",
@@ -56,20 +59,20 @@ def create_user() -> None:
             "apiVersion": "platform.opendefence.fi/v1alpha1",
             "kind": "User",
             "metadata": {"name": USER_NAME},
-            "spec": {"callsign": "M2-PROBE"},
+            "spec": {"callsign": USER_NAME},
         },
     )
 
 
-async def exercise() -> dict[str, Any]:  # noqa: PLR0915 - Keep the live acceptance sequence explicit.
+async def exercise(*, run_operator: bool = False) -> dict[str, Any]:  # noqa: PLR0915 - Explicit live acceptance sequence.
     cluster = (ROOT / ".local/kind/owner").read_text().strip()
     async with (
-        Config(kubeconfig=ROOT / ".local/kind/kubeconfig", context="kind-" + cluster) as config,
+        Config(kubeconfig=ROOT / ".local/kind/kubeconfig", context="kind-" + cluster, namespace=NAMESPACE) as config,
         AsyncExitStack() as transports,
     ):
         transports.callback(config.client.close)
         transports.push_async_callback(config.async_client.aclose)
-        users = await CoreUser.async_client(config, cached=False)
+        users = await User.async_client(config, cached=False)
         bindings = await UserBinding.async_client(config, namespace=NAMESPACE, cached=False)
         user = await users.get(USER_NAME)
         created = await asyncio.gather(*(ensure_binding(user, bindings) for _ in range(8)))
@@ -131,7 +134,7 @@ async def exercise() -> dict[str, Any]:  # noqa: PLR0915 - Keep the live accepta
             assert error.status_code in (409, 422)
         else:
             raise AssertionError("A replaced binding accepted the old UID snapshot")
-        return {
+        report = {
             "concurrentCreators": len(created),
             "atomicCreate": True,
             "statusGeneration": synced.status.observed_generation,
@@ -141,11 +144,118 @@ async def exercise() -> dict[str, Any]:  # noqa: PLR0915 - Keep the live accepta
             "recreatedUserSeparated": True,
             "replacedBindingDenied": True,
         }
+        if run_operator:
+            report.update(await exercise_operator(config))
+        return report
+
+
+async def exercise_operator(config: Config) -> dict[str, Any]:  # noqa: PLR0915 - Explicit live reconciliation assertions.
+    users = await User.async_client(config, cached=False)
+    bindings = await UserBinding.async_client(config, namespace=NAMESPACE, cached=False)
+    current_user = await users.get(USER_NAME)
+    current_key = binding_keys(current_user, namespace=NAMESPACE)[0]
+    orphan = next(binding for binding in await bindings.list() if binding.name != current_key.name)
+    assert orphan.name
+    fixture_condition = {
+        "type": "Synced",
+        "status": "True",
+        "reason": "Fixture",
+        "message": "Former readiness fixture.",
+        "lastTransitionTime": datetime.now(UTC).isoformat(),
+        "observedGeneration": 1,
+    }
+    kubectl(
+        "patch",
+        "userbinding",
+        orphan.name,
+        "--subresource=status",
+        "--type=merge",
+        "-p",
+        json.dumps({"status": {"observedGeneration": 1, "conditions": [fixture_condition]}}),
+    )
+    kubectl("delete", "userbinding", current_key.name, "--wait=true")
+    unrelated = await bindings.create(
+        UserBinding.model_validate(
+            {
+                "metadata": {
+                    "name": "unrelated-observation",
+                    "namespace": NAMESPACE,
+                    "labels": {"app.kubernetes.io/managed-by": "another-integration"},
+                },
+                "spec": {"userRef": {"name": USER_NAME}},
+            }
+        )
+    )
+    app = create_operator(namespace=NAMESPACE, config=config)
+    # The probe tests reconciliation against Kubernetes, without opening a diagnostics port.
+    app.health = None
+    stop = asyncio.Event()
+    running = asyncio.create_task(app.run(stop=stop))
+
+    async def pending(name: str) -> UserBinding:
+        async with asyncio.timeout(20):
+            while True:
+                if running.done():
+                    await running
+                    raise AssertionError("Operator stopped before reconciliation")
+                try:
+                    binding = await bindings.get(name)
+                except APIError as error:
+                    if error.status_code != 404:
+                        raise
+                else:
+                    assert binding.metadata
+                    status = binding.status
+                    if (
+                        status
+                        and status.observed_generation == binding.metadata.generation
+                        and any(
+                            condition.type == "Synced" and condition.status == "False"
+                            for condition in status.conditions
+                        )
+                    ):
+                        return binding
+                await asyncio.sleep(0.05)
+
+    try:
+        await app.wait_ready()
+        first = await pending(current_key.name)
+        await pending(orphan.name)
+        assert first.metadata
+        await asyncio.to_thread(kubectl, "delete", "userbinding", current_key.name, "--wait=true")
+        repaired = await pending(current_key.name)
+        assert repaired.metadata and repaired.metadata.uid != first.metadata.uid
+        await asyncio.to_thread(kubectl, "delete", "user", USER_NAME, "--wait=true")
+        await asyncio.to_thread(create_user)
+        recreated = await users.get(USER_NAME)
+        new_key = binding_keys(recreated, namespace=NAMESPACE)[0]
+        assert new_key != current_key
+        await pending(new_key.name)
+        retained = await bindings.get(current_key.name)
+        assert retained.metadata and retained.metadata.uid == repaired.metadata.uid
+        unchanged = await bindings.get(unrelated.name or "")
+        assert unchanged.metadata and unrelated.metadata
+        assert unchanged.metadata.resource_version == unrelated.metadata.resource_version
+        assert unchanged.status is None
+    finally:
+        stop.set()
+        await asyncio.wait_for(running, timeout=15)
+    assert not app.healthy
+    return {
+        "operatorStartupReplay": True,
+        "operatorBindingRepair": True,
+        "operatorUserRecreation": True,
+        "operatorPendingStatus": True,
+        "operatorOrphanReadinessCleared": True,
+        "operatorUnrelatedBindingPreserved": True,
+        "operatorCleanShutdown": True,
+    }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--crds", type=Path, required=True, help="The supplied opendefence_core_crds.yaml")
+    parser.add_argument("--operator", action="store_true", help="Also exercise the running mediamtx-operator")
     args = parser.parse_args()
     source = args.crds.read_bytes()
     documents: list[dict[str, Any]] = [
@@ -170,7 +280,7 @@ def main() -> None:
         namespace_created = True
         create_user()
         user_created = True
-        report = asyncio.run(exercise())
+        report = asyncio.run(exercise(run_operator=args.operator))
     finally:
         if user_created:
             kubectl("delete", "user", USER_NAME, "--ignore-not-found", "--wait=true")
@@ -180,12 +290,14 @@ def main() -> None:
             kubectl("delete", "crd", *installed, "--wait=true", "--timeout=60s")
     report.update(
         coreCrdSourceSha256=hashlib.sha256(source).hexdigest(),
-        cloudcoilRevision="e8ec4ef00c03b2c8974ed7ed0c99a7280ee802c8",
         cloudcoilVersion=version("cloudcoil"),
+        coreModelsVersion=version("lib-opendefence-core"),
         pythonVersion=sys.version.split()[0],
         packageSourceSha256={
-            module: hashlib.sha256((ROOT / "src/odintegration_mediamtx" / module).read_bytes()).hexdigest()
-            for module in ("bindings.py", "identity.py")
+            module: hashlib.sha256((ROOT / "src/opendefence_integration_mediamtx" / module).read_bytes()).hexdigest()
+            for module in (
+                ("bindings.py", "identity.py", "operator.py") if args.operator else ("bindings.py", "identity.py")
+            )
         },
         namespaceCleanup=True,
         crdCleanup=True,
@@ -193,7 +305,8 @@ def main() -> None:
     )
     state = ROOT / ".local/m2"
     state.mkdir(parents=True, exist_ok=True)
-    (state / "bindings-results.json").write_text(json.dumps(report, indent=2) + "\n")
+    result_name = "operator-results.json" if args.operator else "bindings-results.json"
+    (state / result_name).write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
 
 

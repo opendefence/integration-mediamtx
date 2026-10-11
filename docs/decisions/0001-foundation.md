@@ -2,16 +2,18 @@
 
 Date: 2026-10-10. Gate: M0.
 
-Use one Python 3.14 package, `odintegration_mediamtx`, for the future API and
-operator. Run those processes and MediaMTX in separate Pods. Core owns identity
-and effective permissions. The operator writes integration binding status.
+Use one Python 3.14 package, `opendefence_integration_mediamtx`, for the future
+API and `mediamtx-operator`. Run those processes and MediaMTX in separate Pods.
+Core owns identity and effective permissions. `mediamtx-operator` writes
+integration binding status.
 Namespace Secrets hold credentials. Do not add a user database or sidecars.
 
 Use the development settings from TAK prototype revision
 `b332e527c7dedf5e3f0a972b792c7d697dcace6b`: uv, Ruff, strict Pyrefly,
-pytest and prek. Use Make for task entry points. The repository has no task
-runner dependency. Do not copy Java, JNI, certificate packaging, SQL or legacy
-private package indexes.
+pytest and prek. Use Task for task entry points, as requested after the original
+foundation work. Shared development clusters use the base repository's tasks;
+protocol probes keep their isolated owned cluster. Do not copy Java, JNI,
+certificate packaging, SQL or legacy private package indexes.
 
 Runtime dependencies are deferred until their code is added. Pin Cloudcoil to
 a reviewed commit when the Core adapter needs it. The draft OpenAPI file remains
@@ -22,10 +24,11 @@ Keep its kubeconfig inside this checkout. Refuse to adopt an existing cluster.
 Keep an ownership record before creation so failed creation can be cleaned up.
 Only named, owned clusters can be deleted. Load image archives explicitly.
 
-The user deferred TAK support on 2026-10-10. Defer TAK video XML profiles and
-all integration with sibling TAK tasks. Those profile names remain in the draft
-contract for later review. Keep them out of runtime capabilities until the sibling
-work is ready and client tests pass.
+The user deferred TAK support on 2026-10-10 and restored its scope on
+2026-10-11. The [TAK checkpoint](../implementation-status.md#tak-administrator-access-checkpoint)
+records local administrator access through the sibling `integration-tak`
+deployment. TAK video XML profiles remain outside runtime capabilities until
+implementation and client tests pass.
 
 Core policy, status ownership, identity encoding, HTTP routing and session expiry
 remain M1 decisions. Do not invent Core resource fields or identity headers.

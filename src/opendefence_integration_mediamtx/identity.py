@@ -4,7 +4,7 @@ import re
 from collections.abc import Iterable
 from uuid import UUID
 
-from odintegration_mediamtx.paths import parse_user_id
+from opendefence_integration_mediamtx.paths import parse_user_id
 
 DEFAULT_USER_UUID_HEADER = "X-OpenDefence-User-UUID"
 

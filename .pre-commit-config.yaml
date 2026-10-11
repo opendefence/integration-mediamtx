@@ -62,6 +62,7 @@ repos:
     rev: 1.9.4
     hooks:
     - id: bandit
+      language_version: python3.14
       args: ["--skip=B101"]
 -   repo: https://github.com/Lucas-C/pre-commit-hooks-markup
     rev: v1.0.1
@@ -74,7 +75,7 @@ repos:
         entry: uv run --locked detect-secrets-hook
         language: system
         exclude: '^uv\.lock$'
-        # args: ['--baseline', '.secrets.baseline']
+        args: ['--baseline', '.secrets.baseline']
 -   repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:

@@ -1,8 +1,29 @@
 # M1 contracts and dependency gates
 
+Superseded for current media admission on 2026-10-11: the
+[callsign callback](m2-user-auth.md) uses passwords and the existing User model.
+Only projected `superadmin` adds an override. The effective media Role,
+revision, and freshness fields proposed below are historical scoped-grant
+requirements. They do not block the current callback. See the
+[current Core handoff](core-media-policy-handoff.md).
+
 Date: 2026-10-10. These are integration design decisions and requirements for
 Core review, updated with the user's M2 clarification. They are not a running API. The
 [protocol findings](m1-findings.md) distinguish live evidence from design.
+
+Decision update, 2026-10-11: the user selected callsign-based media paths and
+the legacy read-all, publish-own path rule for normal media users. Core will let
+integrations define Roles and will project effective Role membership onto the
+User. This integration defines what `mediamtx-user` permits. Core's global
+`superadmin` Role grants all media access in this integration.
+There is no `productuser` type. See the [current Core handoff](core-media-policy-handoff.md).
+This update replaces the UUID-based media path and permission assumptions below.
+User and grant identity still use the immutable Core User UID.
+Only current `superadmin` Users and this integration's own service identity may
+use MediaMTX `api`, `metrics`, or `pprof`. Ordinary media grants cannot use them.
+The planned `core-operator` will project effective Roles and Groups into the User after
+Role, Group, and assignment changes. This integration already watches User
+events. The effective Role schema and bounded freshness fields are pending.
 
 ## Core evidence
 
@@ -13,7 +34,7 @@ It leaves the Integration Manifest, policy freshness and identity recovery open.
 The M2 clarification below supplies binding ownership and the identity-header boundary. The accompanying
 API handoff is `3.0.0-draft.6`; it does not supply a versioned media-policy feed.
 
-The local Core operator prototype was read at
+The local `core-operator` prototype was read at
 `5278b09e9776020b48ccba17f51d7d93e4378d2c`. Its
 `src/rmk8soperator/models/v1alpha1/userbinding.py` lets integrations create
 namespaced bindings with `spec.userRef.name`. Its status has shared conditions,
@@ -32,41 +53,43 @@ The handoff's open items remain open.
 Core remains the identity authority. Preserve its current `metadata.uid` source.
 Normalize canonical UUID text and compact Base64URL into the same UUID value.
 Emit compact, unpadded Base64URL for public IDs. Do not infer identity from a
-callsign or silently introduce a persistent UUID field. Core must supply a
-mapping before grants are restored against recreated Users. Certificate CN
-encoding and certificate activation remain Core decisions.
+callsign or silently introduce a persistent UUID field. After cluster
+recovery, restore a grant only if its stored User UID matches the current User
+UID. Do not restore grants by callsign. Approved Users stay as permanent
+records after revocation. The integration does not read User certificate
+fields. Core owns User certificate activation.
 
-For isolated policy code, use `live/{tool}/{compact-user-id}` with tools `icu`,
-`gopro`, `uas` and `ipcam`. Match exact decoded owner and path segments. Reject
-encoded separators, empty or dot segments, noncanonical IDs and trailing slashes.
-Keep the 192-character limit in the draft. Do not enable subordinate channels
-until an actual client needs them. A versioned stream ID encodes the canonical
-path; decoding it never grants access. The original M1 spike's UUID-text paths
-are fixtures, not a commitment to legacy path compatibility. M2 uses compact
-paths in the shared parser and protocol runner.
+The current path is `live/{tool}/{callsign}` with tools `icu`, `gopro`, `uas`
+and `ipcam`. Match exact owner and path segments. Reject encoded separators,
+empty or dot segments, invalid callsigns and trailing slashes. Do not enable
+subordinate channels until a client needs them. A versioned stream ID encodes
+the canonical path; decoding it never grants access. The original M1 spike's
+UUID-text paths and the draft's compact UUID paths are historical fixtures.
 
 The shared policy function needs these semantics, without assuming CRD fields:
 
 | Input | Required meaning |
 | --- | --- |
-| Subject and binding | Immutable subject ID, approved account and current integration assignment. |
-| Effective access | Core-resolved read scopes, own-stream publish permission and sharing permission. No local role inheritance. |
-| Revision | Opaque revision that covers User, group ancestry, roles and assignment changes. |
+| Subject and binding | Immutable subject ID, approved account and current UserBinding UID. An effective MediaMTX Role or `superadmin` supplies integration assignment. |
+| Effective Roles | Core-resolved direct and Group-derived Role names and UIDs. This integration maps them to read, publish, sharing and control permissions. No local Group inheritance. |
+| Revision | Opaque revision that covers User, Group ancestry and Role assignment changes. |
 | Freshness | Authoritative evaluation time and expiry, or a bounded fresh authorization read. A watch connection alone is insufficient. |
-| Approval deadline | Absolute access deadline, or an explicit Core policy with no such deadline. Missing data is not unlimited approval. |
+| Account deadline | Absolute general account deadline if Core has one, or an explicit statement that Core has none. Missing data is not unlimited approval. |
 
-Deny unknown, missing, malformed or stale policy. A media decision intersects
-fresh Core access with the grant's exact stream, one action, allowed protocols,
-expiry and persisted revocation state. Equality with any deadline means expired.
+Deny unknown, missing, malformed or stale Role projections. A media decision
+intersects this integration's Role rules with the grant's exact stream, one
+action, allowed protocols, expiry and persisted revocation state. Equality
+with any deadline means expired.
 Use injected time in pure policy tests. Do not invent a clock-skew allowance.
 The production adapter must settle clock tolerance and freshness with Core.
 Keep the plan's 15-second freshness and 30-second removal targets as unverified
 acceptance targets.
 
-The integration operator is the sole integration-status writer. The API writes
-grant intent to Secrets. Core policy supplies access and assignment. Readiness
-must match the binding generation, policy revision and current MediaMTX instance
-and configuration. Old `Synced=True` is insufficient.
+`mediamtx-operator` is the sole integration-status writer. The API writes
+grant intent to Secrets. Core supplies effective Roles; this integration
+decides access and assignment from them. Readiness must match the binding
+generation, Role projection revision, and current MediaMTX instance and
+configuration. Old `Synced=True` is insufficient.
 
 The user supplied `../opendefence_core_crds.yaml` during M2, SHA-256
 `105bede6c1dd9f77c9effb6d8525d5882822a6ca67c75f14f2f59f64f106a747`.
@@ -90,6 +113,10 @@ Core's edge must remove client-supplied identity headers and inject the verified
 UUID. Limit the integration listener to that trusted route. Header parsing alone
 does not prove authentication, policy freshness or access. Ingress enforcement
 is still a deployment check, not a second authentication server in this repo.
+The certificate proves User identity only. It grants no Roles. The integration
+reads the projected Role and Group lists from the current User resource. It
+applies its own MediaMTX Role rules. `mediamtx-operator` must reconcile the
+MediaMTX workload when that User resource changes.
 
 Read Core's repository at `af0375a41aad095ce464ba588544930d0a486793`:
 [source](https://github.com/opendefence/core/tree/af0375a41aad095ce464ba588544930d0a486793).
@@ -132,20 +159,22 @@ after their original grant expiry; a delayed creator must recheck that expiry
 before creating a credential. Do not release a live reservation by a short
 timeout. This is credential bookkeeping, not a duplicate user database.
 
-Persist denial before draining sessions. The operator scans every relevant
+Persist denial before draining sessions. `mediamtx-operator` scans every relevant
 session-list page on each MediaMTX instance and matches the grant username.
 Treat an absent session as successful removal; repeat the scan to catch admission
 races. Rebuild observations after restart. Keep cleanup incomplete on dependency
 failure. Grant status must distinguish denial from completed removal.
 
 Keep a tombstone until session removal is confirmed and both the original grant
-expiry and retry window have passed. Keep denied credentials or the equivalent
-revocation record readable until cleanup completes. Delete the grant record
-before releasing its quota reservation, with preconditions on both operations.
-An interrupted cleanup may temporarily consume quota; it must never restore
-access. Stop new issuance when retained records fill the bound. Do not discard
-unresolved revocations to make space. Explicitly reconcile cross-namespace
-cleanup; do not use invalid owner references.
+expiry and retry window have passed. Keep the revoked grant record readable
+while cleanup is pending. After confirmed session removal, mark the reservation
+complete to release active quota. Retain the revoked grant record and the
+reservation entry for retries. Delete them only after the retention window,
+with UID and resource-version guards. An interrupted cleanup may temporarily
+consume quota; it must never restore access. Stop new issuance when retained
+records fill the bound. Do not discard unresolved revocations to make space.
+Explicitly reconcile cross-namespace cleanup; do not use invalid owner
+references.
 
 These storage rules require concurrent-create, conflict, restart and cleanup
 tests in M2. The spike does not prove them. Kubernetes RBAC must exclude writers
@@ -153,10 +182,13 @@ that bypass these invariants, and Secret encryption remains a base requirement.
 
 ## Media boundary and release gates
 
-Use external HTTPS authorization and `authHTTPExclude: []`. Media grants cannot
-authorize `api`, `metrics` or `pprof`. Management credentials are separate and
-available before reconciliation starts. Keep `pprof` disabled. Require a grant
-username; accept the upstream duplicate password/token representation. A token
+Use external HTTPS authorization and `authHTTPExclude: []`. Ordinary media grants
+cannot authorize `api`, `metrics` or `pprof`. Permit these actions only for a
+current Core `superadmin` with a separate control credential or for this
+integration's own service credential. The service credential must be available
+before reconciliation starts. Enable `pprof` only when it is needed and apply
+the same authorization rule. Require a username for each credential; accept the
+upstream duplicate password/token representation. A token
 alone has no reliable grant-to-session mapping in this design.
 
 Upstream reports `rtsp` for RTSPS and `rtmp` for RTMPS. Treat them as secure public

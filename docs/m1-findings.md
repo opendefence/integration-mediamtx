@@ -41,7 +41,7 @@ The following assertions passed in the live fixture:
   A repeated kick returns 404. The list becomes empty and reconnect is denied.
 - Removing the callback Pod denies new reads and authenticated control requests.
   An existing HLS query session remains readable. This is a real callback outage,
-  not a test of Core or operator availability.
+  not a test of `core-operator` or `mediamtx-operator` availability.
 - A wrong callback leaf pin is rejected. Updating `authHTTPFingerprint` through
   the control API also recreates the protocol listeners and ends old sessions.
   This reload must not be confused with an unplanned callback outage.
@@ -79,7 +79,7 @@ Production still needs private exposure, network restrictions and the agreed
 transport-security boundary. The fixture does not claim callback mTLS.
 
 The control permission is broad `api`; it cannot express read-only control.
-Callback unavailability also prevents the operator from authenticating to kick
+Callback unavailability also prevents `mediamtx-operator` from authenticating to kick
 sessions through that API. Keep management credentials independent of Core
 policy freshness, but do not claim this removes the callback availability risk.
 The pinned [authentication implementation](https://github.com/bluenviron/mediamtx/blob/914e39535ece709919ac325aaeed98d394ed9093/internal/auth/manager.go)
@@ -105,9 +105,9 @@ another explicit routing contract. Do not add a payload proxy or sidecar.
 ## Limits and next evidence
 
 This test does not prove the production authorization policy, Kubernetes grant
-durability, Core freshness, ForwardAuth headers, API/operator restart recovery,
-admission races or an absolute session deadline. Strict outage enforcement
-remains unverified and must not be advertised. The 15/30-second targets remain
+durability, Core freshness, ForwardAuth headers, public API or
+`mediamtx-operator` restart recovery, admission races or an absolute session
+deadline. Strict outage enforcement remains unverified and must not be advertised. The 15/30-second targets remain
 unverified. Native Safari, hls.js, VLC and mobile clients were not exercised.
 
 RTMPS, SRT, WebRTC/ICE, recording, client import/update behavior, AMD64 and full

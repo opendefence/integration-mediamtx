@@ -11,15 +11,11 @@ import pytest
 from cloudcoil.apimachinery import ObjectMeta, Time
 from cloudcoil.client import AsyncAPIClient
 from cloudcoil.errors import APIError, ResourceConflict
-from pydantic import ValidationError
+from lib_opendefence_core.models.v1alpha1 import ObjectRef, User, UserBinding, UserBindingStatus, UserSpec
+from lib_opendefence_core.models.v1alpha1.common import PlatformCondition
 
-from odintegration_mediamtx.bindings import (
-    MANAGED_BY,
+from opendefence_integration_mediamtx.bindings import (
     USER_UUID_ANNOTATION,
-    CoreUser,
-    PlatformCondition,
-    UserBinding,
-    UserBindingStatus,
     ensure_binding,
     set_binding_synced,
 )
@@ -31,10 +27,11 @@ NAMESPACE = "integration-mediamtx"
 NAME = f"mediamtx-{SUBJECT.hex}"
 
 
-def user(subject: UUID = SUBJECT) -> CoreUser:
-    return CoreUser(
-        metadata=ObjectMeta(name="user-alpha", uid=str(subject), resource_version="5"),
-        spec={"callsign": "ALPHA", "roleRefs": [{"name": "read-all"}]},
+def user(subject: UUID = SUBJECT) -> User:
+    return User(
+        kind="User",
+        metadata=ObjectMeta(name="alpha", uid=str(subject), resource_version="5"),
+        spec=UserSpec(callsign="alpha", role_refs=[ObjectRef(name="read-all")]),
     )
 
 
@@ -48,9 +45,9 @@ def stored_binding() -> UserBinding:
                 "resourceVersion": "8",
                 "generation": 2,
                 "annotations": {USER_UUID_ANNOTATION: str(SUBJECT)},
-                "labels": {"app.kubernetes.io/managed-by": MANAGED_BY},
+                "labels": {"app.kubernetes.io/managed-by": "odintegration-mediamtx"},
             },
-            "spec": {"userRef": {"name": "user-alpha"}},
+            "spec": {"userRef": {"name": "alpha"}},
         }
     )
 
@@ -95,7 +92,7 @@ def test_concurrent_create_returns_the_persisted_winner() -> None:
     asyncio.run(run())
     assert len(records) == 1
     record = records[NAME]
-    assert record["spec"] == {"userRef": {"name": "user-alpha"}}
+    assert record["spec"] == {"userRef": {"name": "alpha"}}
     assert "ownerReferences" not in record["metadata"]
     assert "status" not in record
     assert len([request for request in requests if request.method == "GET"]) == 7
@@ -186,7 +183,7 @@ def test_synced_writes_only_status_with_uid_and_version_guards() -> None:
                 updated, user(), client(http), synced=True, now=NOW + timedelta(hours=1)
             )
             assert unchanged is updated
-            assert updated.status and updated.status.conditions[0].last_transition_time == NOW
+            assert updated.status and updated.status.conditions[0].last_transition_time.root == NOW
 
     asyncio.run(run())
     assert original.status is None
@@ -205,7 +202,7 @@ def test_status_change_preserves_other_conditions_and_updates_transition_time() 
                 status="True",
                 reason="Reconciled",
                 message="Provisioning is complete.",
-                last_transition_time=NOW - timedelta(hours=1),
+                last_transition_time=Time(root=NOW - timedelta(hours=1)),
                 observed_generation=1,
             ),
             PlatformCondition(
@@ -213,7 +210,7 @@ def test_status_change_preserves_other_conditions_and_updates_transition_time() 
                 status="False",
                 reason="Pending",
                 message="Session cleanup is pending.",
-                last_transition_time=NOW - timedelta(hours=1),
+                last_transition_time=Time(root=NOW - timedelta(hours=1)),
             ),
         ],
     )
@@ -272,20 +269,22 @@ def test_refuses_invalid_namespace_before_any_request(namespace: str) -> None:
 
 
 @pytest.mark.parametrize("extra", ["accountId", "callsign", "observedPolicyRevision", "credentialRefs"])
-def test_models_refuse_status_fields_that_the_shared_crd_would_prune(extra: str) -> None:
-    with pytest.raises(ValidationError):
-        UserBindingStatus.model_validate({extra: "unsupported"})
+def test_models_drop_status_fields_that_the_shared_crd_would_prune(extra: str) -> None:
+    status = UserBindingStatus.model_validate({extra: "unsupported"})
+    assert status.model_dump(mode="json", by_alias=True, exclude_none=True) == {"conditions": []}
 
 
-@pytest.mark.parametrize("invalid", ["duplicate", "naive-time"])
+@pytest.mark.parametrize("invalid", ["duplicate", "naive-time", "invalid-status"])
 def test_refuses_invalid_conditions_before_writing(invalid: str) -> None:
     binding = stored_binding()
     condition = PlatformCondition(
         type="Synced",
-        status="False",
+        status="invalid" if invalid == "invalid-status" else "False",
         reason="Pending",
         message="Provisioning is incomplete.",
-        last_transition_time=NOW if invalid == "duplicate" else NOW.replace(tzinfo=None),
+        last_transition_time=(
+            Time.model_construct(root=NOW.replace(tzinfo=None)) if invalid == "naive-time" else Time(root=NOW)
+        ),
     )
     binding.status = UserBindingStatus(conditions=[condition, condition] if invalid == "duplicate" else [condition])
 
